@@ -102,3 +102,13 @@ export async function requireUser(perm?: Perm): Promise<SessionUser> {
   if (perm && !can(u, perm)) throw new HttpError(403, "You do not have permission for this");
   return u;
 }
+
+/** For server pages: layouts and pages render in parallel, so each page checks the session itself. */
+export async function pageUser(): Promise<SessionUser> {
+  const u = await getUser();
+  if (!u) {
+    const { redirect } = await import("next/navigation");
+    redirect("/login");
+  }
+  return u as SessionUser;
+}

@@ -297,8 +297,8 @@ export async function ledger(accountId: number, from: string, to: string) {
   const open = await q1<{ bal: string }>(
     `select coalesce(sum(jl.debit - jl.credit),0) bal from journal_lines jl join journal_entries je on je.id = jl.entry_id
       where jl.account_id = $1 and je.entry_date < $2`, [accountId, from]);
-  const rows = await q<{ entry_date: string; ref_no: string; type: string; memo: string; party: string | null; debit: string; credit: string; txn_id: string }>(
-    `select je.entry_date::text, t.ref_no, t.type, je.memo, p.name party, jl.debit, jl.credit, t.id txn_id
+  const rows = await q<{ line_id: string; entry_date: string; ref_no: string; type: string; memo: string; party: string | null; debit: string; credit: string; txn_id: string; reconciled_at: string | null }>(
+    `select jl.id line_id, je.entry_date::text, t.ref_no, t.type, je.memo, p.name party, jl.debit, jl.credit, t.id txn_id, jl.reconciled_at::text
        from journal_lines jl join journal_entries je on je.id = jl.entry_id join transactions t on t.id = je.txn_id
        left join parties p on p.id = coalesce(jl.party_id, t.party_id)
       where jl.account_id = $1 and je.entry_date between $2 and $3 order by je.entry_date, je.id, jl.id`,

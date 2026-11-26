@@ -211,7 +211,7 @@ export async function postTransaction(raw: unknown, user: SessionUser): Promise<
 
       // ---- lines ----
       const needsLines = ["purchase", "sale", "expense", "sale_return", "purchase_return", "stock_adjustment"].includes(t);
-      let lines: ComputedLine[] = [];
+      const lines: ComputedLine[] = [];
       if (needsLines) {
         if (input.lines.length === 0 && t === "expense" && input.amount) {
           input.lines = [{ description: input.notes || "Expense", qty: 1, unit_price: input.amount, discount: 0 }];
@@ -321,6 +321,9 @@ export async function postTransaction(raw: unknown, user: SessionUser): Promise<
           for (const l of lines) {
             const svc = !l.product || l.product.is_service;
             J.push({ account_id: svc ? acc.sales_services : acc.sales_goods, credit: l.net });
+            // learn the selling price from the first sale if none was set
+            if (l.product && num(l.product.selling_price) === 0 && l.unit_price > 0)
+              await q(`update products set selling_price = $2 where id = $1`, [l.product.id, l.unit_price], c);
             if (l.product && !l.product.is_service) {
               const unitCost = num(l.product.avg_cost);
               if (num(l.product.qty_on_hand) < l.qty)

@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), "Noto Sans Malayalam", "Noto Sans Arabic", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe7fe;
+  --color-brand-500: #3b6ef5;
+  --color-brand-600: #2554e8;
+  --color-brand-700: #1d43c4;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html { -webkit-tap-highlight-color: transparent; }
+@layer base {
+  body { @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
+
+@layer components {
+.card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900; }
+.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm; }
+.btn-secondary { @apply btn border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700; }
+.btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+.btn-ghost { @apply btn text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800; }
+.input { @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 sm:text-sm; }
+.label { @apply mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400; }
+.table { @apply w-full text-sm; }
+.table th { @apply whitespace-nowrap border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800; }
+.table td { @apply border-b border-slate-100 px-3 py-2 align-top dark:border-slate-800/60; }
+.table td.num, .table th.num { @apply text-right tabular-nums; }
+.chip { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+.prose-chat table { @apply my-2 w-full text-sm; }
+.prose-chat th, .prose-chat td { @apply border border-slate-200 px-2 py-1 text-left dark:border-slate-700; }
+.prose-chat a { @apply text-brand-600 underline; }
+.prose-chat ul { @apply list-disc pl-5; }
+.prose-chat ol { @apply list-decimal pl-5; }
+.prose-chat p { @apply my-1; }
 }
+
+@keyframes pulse-ring { 0% { transform: scale(1); opacity: .5 } 100% { transform: scale(1.6); opacity: 0 } }
+.mic-ring { animation: pulse-ring 1.4s ease-out infinite; }
+@media print { .no-print { display: none !important; } body { background: white; } .card { box-shadow: none; border: none; } }

@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Smart Shop Accounts
 
-## Getting Started
+AI-powered shop management and double-entry accounting for a UAE retail shop (stationery, books, printing, digital services, groceries, mobile accessories).
 
-First, run the development server:
+Employees press the microphone, say the purchase, sale or expense in **Malayalam, English, Manglish or Arabic**, check the details, and confirm. Bills can be photographed. Everything is saved on the phone first (works offline) and synced to a cloud PostgreSQL database, with Google Sheets as a live copy. The owner gets real-time reports and an AI chat that answers from the actual books.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Voice / text entry** with a confirmation screen; nothing is saved without confirmation
+- **Bill scanning**: photos, multiple files, PDF, Excel, Word; review next to the image; duplicate-bill protection; background processing
+- **Purchases, sales, expenses, returns, customer receipts, supplier payments, stock adjustments, cash ↔ bank**
+- **Inventory**: weighted-average cost, low-stock alerts, services without stock, units, SKU/barcode, expiry, other-language names
+- **Double-entry ledger** with database-enforced balance, void-only corrections, full audit log
+- **Reports**: daily, monthly, sales by product, expenses, P&L, balance sheet, trial balance, cash flow, cash book, bank book + reconciliation, general ledger, customer/supplier outstanding, stock valuation, VAT working report; Excel / CSV / PDF export
+- **AI accounting chat** (English/Malayalam), answers only from database figures, can produce Excel/PDF links
+- **Google Sheets sync** with retry and no duplicates; import existing Sheets data
+- **UAE VAT**: configurable rate, inclusive/exclusive prices, zero-rated/exempt products, tax invoice and credit note print
+- **Offline-first** installable phone app; owner/employee roles; AI cost tracking and monthly budget
+- Light and dark mode, mobile-first
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Docs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [Setup & deployment](docs/SETUP.md)
+- [Architecture, schema and accounting rules](docs/ARCHITECTURE.md)
+- [Running costs](docs/COSTS.md)
+- Environment variables: [.env.example](.env.example)
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · PostgreSQL (Neon) · Claude API · Google Sheets API · ExcelJS · jsPDF
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Note: VAT reports help prepare returns; they are not an official FTA submission. Check tax treatment with your tax agent.

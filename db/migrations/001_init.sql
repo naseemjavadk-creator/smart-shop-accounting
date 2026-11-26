@@ -273,8 +273,3 @@ create table audit_log (
   created_at timestamptz not null default now()
 );
 create index audit_log_created_idx on audit_log (created_at);
-
-create table schema_migrations (
-  name text primary key,
-  applied_at timestamptz not null default now()
-);
