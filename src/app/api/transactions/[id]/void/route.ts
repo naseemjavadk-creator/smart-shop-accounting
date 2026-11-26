@@ -6,7 +6,7 @@ import { voidTransaction } from "@/lib/accounting/post";
 import { processSyncQueue } from "@/lib/sheets/sync";
 
 export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-  const user = await requireUser("admin");
+  const user = await requireUser("void");
   const { id } = await ctx.params;
   const { reason } = z.object({ reason: z.string().trim().min(3).max(500) }).parse(await req.json());
   await voidTransaction(id, reason, user);

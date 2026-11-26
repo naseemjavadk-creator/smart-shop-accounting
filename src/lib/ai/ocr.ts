@@ -44,7 +44,7 @@ Dates are day/month/year; 2-digit years are 20xx. Amounts are AED unless stated.
 List every product line. If the bill has only a total and no lines, return one line with the total.`;
 
 /** A bill file turned into something any AI provider can read: the image/PDF itself, or extracted text. */
-type DocPart = { kind: "image" | "pdf"; mime: string; data: Buffer } | { kind: "text"; text: string };
+export type DocPart = { kind: "image" | "pdf"; mime: string; data: Buffer } | { kind: "text"; text: string };
 
 export async function fileToContent(data: Buffer, mime: string, filename: string): Promise<DocPart[]> {
   const lower = filename.toLowerCase();
@@ -78,14 +78,14 @@ export async function fileToContent(data: Buffer, mime: string, filename: string
   throw new Error("This file type is not supported. Use a photo, PDF, Excel (.xlsx), CSV or Word (.docx).");
 }
 
-function toClaude(parts: DocPart[]): Anthropic.Beta.BetaContentBlockParam[] {
+export function toClaude(parts: DocPart[]): Anthropic.Beta.BetaContentBlockParam[] {
   return parts.map((p): Anthropic.Beta.BetaContentBlockParam =>
     p.kind === "text" ? { type: "text", text: p.text }
     : p.kind === "pdf" ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: p.data.toString("base64") } }
     : { type: "image", source: { type: "base64", media_type: p.mime as "image/jpeg", data: p.data.toString("base64") } });
 }
 
-function toGemini(parts: DocPart[]): GPart[] {
+export function toGemini(parts: DocPart[]): GPart[] {
   return parts.map((p): GPart => (p.kind === "text" ? { text: p.text } : { inlineData: { mimeType: p.mime, data: p.data.toString("base64") } }));
 }
 

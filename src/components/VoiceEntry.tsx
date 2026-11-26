@@ -8,9 +8,9 @@ import { TxnEditor, KIND_LABEL, emptyDraft, type SavedInfo } from "./TxnEditor";
 import { useCatalog } from "./useCatalog";
 import { parsedToDraft, type ParsedTxn } from "./parsedToDraft";
 import { savePending, pendingItems, removePending, onOutboxChange } from "@/lib/offline/sync";
-import type { Draft, PendingItem } from "@/lib/offline/types";
+import type { Draft, PendingItem, TxnKind } from "@/lib/offline/types";
 
-type Card = { id: string; draft: Draft; parsed?: ParsedTxn; saved?: SavedInfo };
+export type Card = { id: string; draft: Draft; parsed?: ParsedTxn; saved?: SavedInfo };
 
 const EXAMPLES = [
   "Today I purchased 10 kg tomatoes for 200 AED",
@@ -19,7 +19,14 @@ const EXAMPLES = [
   "Paid 100 dirhams for shop electricity",
 ];
 
-export function VoiceEntry() {
+const AI_TYPES: TxnKind[] = ["sale", "purchase", "expense", "receipt", "payment", "sale_return", "purchase_return"];
+
+/**
+ * Speak or type in your own words → the AI makes the entry → you check and confirm.
+ * `hintType` is set when used inside the Sale / Purchase / Expense screen.
+ */
+export function VoiceEntry({ hintType, embedded }: { hintType?: TxnKind; embedded?: boolean } = {}) {
+  const hint = hintType && AI_TYPES.includes(hintType) ? hintType : null;
   const cat = useCatalog();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +61,7 @@ export function VoiceEntry() {
     }
     setBusy(true);
     try {
-      const r = await fetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t }) });
+      const r = await fetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t, type: hint }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Could not understand");
       setUnderstood(j.understood_text);
@@ -70,17 +77,17 @@ export function VoiceEntry() {
   }
 
   function manual() {
-    setCards([{ id: crypto.randomUUID(), draft: { ...emptyDraft("sale"), raw_input: text || null } }]);
+    setCards([{ id: crypto.randomUUID(), draft: { ...emptyDraft(hintType ?? "sale"), raw_input: text || null } }]);
   }
 
   const allSaved = cards.length > 0 && cards.every((c) => c.saved);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div className="text-center">
+      {!embedded && <div className="text-center">
         <h1 className="text-2xl font-bold">Speak or type an entry</h1>
         <p className="text-sm text-slate-500">Malayalam, English, Manglish or Arabic. You check everything before it is saved.</p>
-      </div>
+      </div>}
 
       <div className="card p-5">
         <VoiceRecorder serverStt={!!cat?.features.stt} disabled={busy}
@@ -92,7 +99,7 @@ export function VoiceEntry() {
             <button className="btn-primary" onClick={() => understand()} disabled={busy || !text.trim()}>
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {busy ? "Understanding…" : "Understand"}
             </button>
-            <button className="btn-secondary" onClick={manual}><PencilLine size={16} /> Enter by hand</button>
+            {!embedded && <button className="btn-secondary" onClick={manual}><PencilLine size={16} /> Enter by hand</button>}
           </div>
           {!text && (
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -122,6 +129,21 @@ export function VoiceEntry() {
         </div>
       )}
 
+      <ConfirmCards cards={cards} setCards={setCards} cat={cat} />
+
+      {allSaved && (
+        <div className="flex flex-wrap justify-center gap-2">
+          <button className="btn-primary" onClick={() => { setCards([]); setText(""); setUnderstood(""); }}>New entry</button>
+          <Link className="btn-secondary" href="/outbox">See saved entries</Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ConfirmCards({ cards, setCards, cat }: { cards: Card[]; setCards: React.Dispatch<React.SetStateAction<Card[]>>; cat: ReturnType<typeof useCatalog> }) {
+  return (
+    <>
       {cards.map((c, i) => (
         <div key={c.id} className={clsx("card p-4", c.saved && "opacity-80")}>
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -141,18 +163,11 @@ export function VoiceEntry() {
             <div className="flex items-center gap-2 text-emerald-600"><CheckCircle2 size={18} /> Saved: {c.saved.summary} · AED {c.saved.total.toFixed(2)}</div>
           ) : (
             <TxnEditor initial={c.draft} cat={cat} compact
-              onCancel={() => setCards(cards.filter((x) => x.id !== c.id))}
+              onCancel={() => setCards((cs) => cs.filter((x) => x.id !== c.id))}
               onSaved={(s) => setCards((cs) => cs.map((x) => (x.id === c.id ? { ...x, saved: s } : x)))} />
           )}
         </div>
       ))}
-
-      {allSaved && (
-        <div className="flex flex-wrap justify-center gap-2">
-          <button className="btn-primary" onClick={() => { setCards([]); setText(""); setUnderstood(""); }}>New entry</button>
-          <Link className="btn-secondary" href="/outbox">See saved entries</Link>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

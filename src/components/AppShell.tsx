@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   LayoutDashboard, Mic, ShoppingCart, Receipt, Wallet, ScanLine, Boxes, MessageSquareText, BarChart3,
-  Settings, Users, Moon, Sun, LogOut, ListOrdered, X, CloudUpload, LayoutGrid,
+  Settings, Users, Moon, Sun, LogOut, ListOrdered, X, CloudUpload, LayoutGrid, Home,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { SyncBadge } from "./SyncBadge";
@@ -72,8 +72,9 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
 
   // phone bottom bar: the four most-used actions (the ones this user may do) + "More" for everything else
   const pick = (h: string) => items.find((i) => i.href === h && i.show);
-  const bottom = (["/new/sale", "/new/purchase", "/scan", "/new/expense", "/inventory", "/"] as const)
-    .map(pick).filter((i): i is Item => !!i).slice(0, 3);
+  // Home is always first; then the two most-used entry screens this user may use (Scan bills is inside Purchase and in More)
+  const bottom = [pick("/")!, ...(["/new/sale", "/new/purchase", "/new/expense", "/scan", "/inventory"] as const)
+    .map(pick).filter((i): i is Item => !!i).slice(0, 2)];
   const short: Record<string, string> = { "/new/sale": "Sale", "/new/purchase": "Purchase", "/scan": "Scan", "/new/expense": "Expense", "/inventory": "Stock", "/": "Home" };
   const bar = [bottom[0], bottom[1], { href: "/entry", label: "Speak", icon: Mic, big: true }, bottom[2]].filter(Boolean) as { href: string; label: string; icon: typeof Mic; big?: boolean }[];
 
@@ -129,7 +130,7 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
               <Link key={b.href} href={b.href} className={clsx("flex flex-col items-center gap-0.5 py-2 text-xs font-semibold", active(b.href) ? "text-brand-600" : "text-slate-600 dark:text-slate-300")}>
                 {b.big ? (
                   <span className="-mt-7 flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-4 ring-white dark:ring-slate-900"><b.icon size={30} /></span>
-                ) : <b.icon size={24} />}
+                ) : b.href === "/" ? <Home size={24} /> : <b.icon size={24} />}
                 {b.big ? b.label : short[b.href] ?? b.label}
               </Link>
             ))}

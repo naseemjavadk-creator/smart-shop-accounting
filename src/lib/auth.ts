@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { q1 } from "./db";
 
 export type Role = "owner" | "employee";
-export type Perm = "purchases" | "sales" | "expenses" | "reports" | "admin";
+export type Perm = "purchases" | "sales" | "expenses" | "reports" | "void" | "admin";
 
 export type SessionUser = {
   id: string;
@@ -16,6 +16,7 @@ export type SessionUser = {
   can_sales: boolean;
   can_expenses: boolean;
   can_reports: boolean;
+  can_void: boolean;
 };
 
 const COOKIE = "shop_session";
@@ -62,7 +63,7 @@ export async function getUser(): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
     const u = await q1<SessionUser & { session_version: number; active: boolean }>(
-      `select id, email, name, role, can_purchases, can_sales, can_expenses, can_reports, session_version, active
+      `select id, email, name, role, can_purchases, can_sales, can_expenses, can_reports, can_void, session_version, active
          from users where id = $1`,
       [payload.sub],
     );
@@ -70,7 +71,7 @@ export async function getUser(): Promise<SessionUser | null> {
     return {
       id: u.id, email: u.email, name: u.name, role: u.role,
       can_purchases: u.can_purchases, can_sales: u.can_sales,
-      can_expenses: u.can_expenses, can_reports: u.can_reports,
+      can_expenses: u.can_expenses, can_reports: u.can_reports, can_void: u.can_void,
     };
   } catch {
     return null;
@@ -85,6 +86,7 @@ export function can(u: SessionUser | null, p: Perm): boolean {
     case "sales": return u.can_sales;
     case "expenses": return u.can_expenses;
     case "reports": return u.can_reports;
+    case "void": return u.can_void;
     case "admin": return false;
   }
 }

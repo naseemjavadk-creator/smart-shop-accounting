@@ -454,9 +454,9 @@ export async function postTransaction(raw: unknown, user: SessionUser): Promise<
   }
 }
 
-/** Void = reverse the journal and the stock movements. Nothing is deleted. Owner only. */
+/** Delete (void) = reverse the journal and the stock movements. Nothing is erased. Owner, or employees allowed to. */
 export async function voidTransaction(id: string, reason: string, user: SessionUser) {
-  if (user.role !== "owner") throw new HttpError(403, "Only the owner can void transactions");
+  if (!can(user, "void")) throw new HttpError(403, "Only the owner (or an employee the owner allows) can delete entries");
   if (!reason.trim()) throw new HttpError(400, "Give a reason");
   await tx(async (c) => {
     const t = await q1<{ id: string; status: string; type: string; ref_no: string; txn_date: string }>(

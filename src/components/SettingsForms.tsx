@@ -117,11 +117,11 @@ export function SettingsForms(props: {
   );
 }
 
-type U = { id: string; name: string; email: string; role: "owner" | "employee"; can_purchases: boolean; can_sales: boolean; can_expenses: boolean; can_reports: boolean; active: boolean; password?: string };
+type U = { id: string; name: string; email: string; role: "owner" | "employee"; can_purchases: boolean; can_sales: boolean; can_expenses: boolean; can_reports: boolean; can_void: boolean; active: boolean; password?: string };
 
 export function UsersAdmin({ users, meId }: { users: U[]; meId: string }) {
   const router = useRouter();
-  const blank: U = { id: "", name: "", email: "", role: "employee", can_purchases: true, can_sales: true, can_expenses: false, can_reports: false, active: true, password: "" };
+  const blank: U = { id: "", name: "", email: "", role: "employee", can_purchases: true, can_sales: true, can_expenses: false, can_reports: false, can_void: false, active: true, password: "" };
   const [edit, setEdit] = useState<U | null>(null);
   const [err, setErr] = useState("");
   async function save() {
@@ -132,7 +132,7 @@ export function UsersAdmin({ users, meId }: { users: U[]; meId: string }) {
     if (!r.ok) { const j = await r.json(); setErr(j.issues?.[0]?.message ?? j.error); return; }
     setEdit(null); setErr(""); router.refresh();
   }
-  const perms = [["can_purchases", "Purchases"], ["can_sales", "Sales"], ["can_expenses", "Expenses"], ["can_reports", "Reports & AI chat"]] as const;
+  const perms = [["can_purchases", "Purchases"], ["can_sales", "Sales"], ["can_expenses", "Expenses"], ["can_reports", "Reports & AI chat"], ["can_void", "Delete entries"]] as const;
   return (
     <Card className="overflow-x-auto">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">

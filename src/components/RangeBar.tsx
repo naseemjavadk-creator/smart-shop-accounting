@@ -62,7 +62,7 @@ export function SearchFilters({ types }: { types: [string, string][] }) {
         <button className="btn-secondary py-1.5">Search</button>
       </form>
       <label className="flex items-center gap-1 text-sm text-slate-500">
-        <input type="checkbox" checked={sp.get("void") === "1"} onChange={(e) => go("void", e.target.checked ? "1" : "")} /> show void
+        <input type="checkbox" checked={sp.get("void") === "1"} onChange={(e) => go("void", e.target.checked ? "1" : "")} /> show deleted
       </label>
     </>
   );

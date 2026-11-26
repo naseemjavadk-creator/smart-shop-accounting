@@ -16,7 +16,7 @@ export default async function SettingsPage() {
   const [shop, vat, sheets, ai, usage, sync, users, log] = await Promise.all([
     getSetting("shop"), getSetting("vat"), getSetting("sheets"), getSetting("ai"),
     aiUsageThisMonth(monthStart(todayISO())), syncStatus(),
-    q(`select id, name, email, role, can_purchases, can_sales, can_expenses, can_reports, active from users order by created_at`),
+    q(`select id, name, email, role, can_purchases, can_sales, can_expenses, can_reports, can_void, active from users order by created_at`),
     q<{ created_at: string; user_name: string | null; action: string; entity: string | null; details: unknown }>(
       `select a.created_at::text, u.name user_name, a.action, a.entity, a.details from audit_log a left join users u on u.id = a.user_id order by a.id desc limit 60`),
   ]);

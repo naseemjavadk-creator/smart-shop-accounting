@@ -4,6 +4,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { claude, FALLBACK, logUsage, assertBudget, refusalText } from "./claude";
 import { provider, CLAUDE_MODELS, GEMINI_MODELS } from "./provider";
 import { generateJSON } from "./gemini";
+import { fileToContent, toClaude, toGemini, type DocPart } from "./ocr";
 import { q, num } from "../db";
 import { addDays, todayISO } from "../dates";
 import { r2, r4 } from "../money";
@@ -89,10 +90,38 @@ export type ParsedLine = {
 };
 export type ParsedTxn = Omit<Draft["transactions"][number], "items"> & { items: ParsedLine[]; total: number };
 
-export async function parseTransactionText(text: string, userId: string): Promise<{ understood_text: string; transactions: ParsedTxn[]; cost_usd: number }> {
+export type TypeHint = Draft["transactions"][number]["type"] | null;
+
+const HINT_LABEL: Record<string, string> = {
+  sale: "Sale", purchase: "Purchase", expense: "Expense", receipt: "Payment received from a customer",
+  payment: "Payment to a supplier", sale_return: "Sales return", purchase_return: "Purchase return",
+};
+const hintText = (h: TypeHint | undefined) =>
+  h ? `The employee is on the "${HINT_LABEL[h]}" screen, so the entries are most likely of type "${h}" unless the words or document clearly say otherwise.` : "";
+
+type Parsed = { understood_text: string; transactions: ParsedTxn[]; cost_usd: number };
+
+export async function parseTransactionText(text: string, userId: string, hint?: TypeHint): Promise<Parsed> {
   const clean = text.trim();
   if (!clean) throw new HttpError(400, "Nothing to understand");
   if (clean.length > 3000) throw new HttpError(400, "Too long. Please say one or a few transactions at a time.");
+  return parseInput({ said: `The employee said:\n"""${clean}"""`, userId, hint, feature: "parse" });
+}
+
+/**
+ * Read a photo / PDF / Excel / Word file (bill, receipt, handwritten note, sales report) into draft entries
+ * of any type. The employee confirms each entry before it is saved.
+ */
+export async function parseFile(data: Buffer, mime: string, filename: string, userId: string, hint?: TypeHint): Promise<Parsed> {
+  const parts = await fileToContent(data, mime, filename);
+  if (provider() === "gemini" && data.length > 18 * 1024 * 1024) throw new HttpError(413, "File is too large for the AI. Take a smaller photo or split the file.");
+  return parseInput({
+    said: "The employee uploaded the document above (a bill, receipt, handwritten note, or sales/expense list). Make the entries it shows. Copy numbers exactly as written; if a number cannot be read, leave it null and add a question.",
+    parts, userId, hint, feature: "ocr",
+  });
+}
+
+async function parseInput({ said, parts = [], userId, hint, feature }: { said: string; parts?: DocPart[]; userId: string; hint?: TypeHint; feature: string }): Promise<Parsed> {
   await assertBudget();
   const cat = await catalog();
   const today = todayISO();
@@ -107,17 +136,17 @@ export async function parseTransactionText(text: string, userId: string): Promis
     `Known customers: ${cat.customers.join(", ") || "none"}`,
   ].join("\n");
 
-  const said = `The employee said:\n"""${clean}"""`;
+  const hinted = [hintText(hint), said].filter(Boolean).join("\n");
   let draft: Draft, cost: number;
   if (provider() === "gemini") {
-    const r = await generateJSON({ feature: "parse", model: GEMINI_MODELS.parse, userId, system: SYSTEM,
-      parts: [{ text: context }, { text: said }], schema: DraftSchema });
+    const r = await generateJSON({ feature, model: parts.length ? GEMINI_MODELS.ocr : GEMINI_MODELS.parse, userId, system: SYSTEM,
+      parts: [{ text: context }, ...toGemini(parts), { text: hinted }], schema: DraftSchema });
     draft = r.data; cost = r.cost;
   } else {
-    const model = CLAUDE_MODELS.parse;
+    const model = parts.length ? CLAUDE_MODELS.ocr : CLAUDE_MODELS.parse;
     const msg = await claude().beta.messages.parse({
       model,
-      max_tokens: 8000,
+      max_tokens: 16000,
       ...FALLBACK,
       system: SYSTEM,
       output_config: { effort: "low", format: betaZodOutputFormat(DraftSchema) },
@@ -125,11 +154,12 @@ export async function parseTransactionText(text: string, userId: string): Promis
         role: "user",
         content: [
           { type: "text", text: context, cache_control: { type: "ephemeral" } },
-          { type: "text", text: said },
+          ...toClaude(parts),
+          { type: "text", text: hinted },
         ],
       }],
     });
-    cost = await logUsage("parse", msg.model ?? model, msg.usage, userId);
+    cost = await logUsage(feature, msg.model ?? model, msg.usage, userId);
     const refused = refusalText(msg);
     if (refused) throw new HttpError(422, refused);
     if (!msg.parsed_output) throw new HttpError(422, "Could not understand. Please try again or type it.");

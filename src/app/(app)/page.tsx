@@ -7,6 +7,7 @@ import { aed, qty } from "@/lib/money";
 import { num } from "@/lib/db";
 import { Card, Stat, Empty, TypeChip } from "@/components/ui";
 import { DailyChart, MonthlyChart } from "@/components/Charts";
+import { VoidButton } from "@/components/VoidButton";
 import { TYPE_LABEL, type TxnType } from "@/lib/accounting/schema";
 
 const actions = [
@@ -45,7 +46,8 @@ export default async function Dashboard() {
           <div className="border-b border-slate-100 px-4 py-3 font-semibold dark:border-slate-800">My entries (last 7 days)</div>
           {mine.length === 0 ? <Empty>No entries yet.</Empty> : mine.map((r) => (
             <div key={r.id} className="flex justify-between border-b border-slate-100 px-4 py-2 text-sm last:border-0 dark:border-slate-800">
-              <span><TypeChip type={r.type} label={TYPE_LABEL[r.type as TxnType]} /> {r.items ?? r.notes}</span><span className="tabular-nums">{aed(r.total)}</span>
+              <span><TypeChip type={r.type} label={TYPE_LABEL[r.type as TxnType]} /> {r.items ?? r.notes}</span>
+              <span className="flex items-center gap-1 tabular-nums">{aed(r.total)}{can(user, "void") && r.status === "posted" && <VoidButton id={r.id} refNo={r.ref_no} compact />}</span>
             </div>
           ))}
         </Card>
@@ -89,6 +91,16 @@ export default async function Dashboard() {
         <Stat label="You owe suppliers" value={aed(bal.payable)} tone={bal.payable > 0 ? "warn" : "default"} />
         <Stat label="Stock value (cost)" value={aed(bal.inventory)} hint={`${low.length} low-stock items`} />
       </div>
+
+      <Link href="/reports?r=vat" className="block">
+        <div className="mb-2 flex items-center justify-between"><div className="font-semibold">VAT this month</div><span className="text-xs text-brand-600">VAT report →</span></div>
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="VAT collected on sales" value={aed(month.vat_output)} />
+          <Stat label="VAT paid on purchases" value={aed(month.vat_input)} />
+          <Stat label={month.vat_output - month.vat_input >= 0 ? "VAT to pay" : "VAT to reclaim"} value={aed(Math.abs(month.vat_output - month.vat_input))}
+            tone={month.vat_output - month.vat_input > 0 ? "warn" : "default"} hint={`All periods: ${aed(bal.vat_payable)}`} />
+        </div>
+      </Link>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">

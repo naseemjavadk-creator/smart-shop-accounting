@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { pageUser } from "@/lib/auth";
+import { pageUser, can } from "@/lib/auth";
 import { getTransaction } from "@/lib/txn-detail";
 import { num } from "@/lib/db";
 import { aed, qty } from "@/lib/money";
@@ -22,10 +22,10 @@ export default async function TxnPage({ params }: { params: Promise<{ id: string
   return (
     <div className="space-y-4">
       <PageHeader title={`${TYPE_LABEL[type]} ${t.ref_no}`}
-        subtitle={<>{fmtDate(String(t.txn_date))} · recorded by {t.created_by_name ?? "—"} via {String(t.source)} {t.status === "void" && <span className="chip ml-1 bg-rose-100 text-rose-700">VOID: {String(t.void_reason)}</span>}</>}
+        subtitle={<>{fmtDate(String(t.txn_date))} · recorded by {t.created_by_name ?? "—"} via {String(t.source)} {t.status === "void" && <span className="chip ml-1 bg-rose-100 text-rose-700">DELETED: {String(t.void_reason)}</span>}</>}
         actions={<>
           {(type === "sale") && <Link className="btn-secondary" href={`/invoice/${id}`} target="_blank">Tax invoice</Link>}
-          {user.role === "owner" && t.status !== "void" && <VoidButton id={id} />}
+          {can(user, "void") && t.status !== "void" && <VoidButton id={id} refNo={String(t.ref_no)} />}
         </>} />
       <div className="grid gap-3 sm:grid-cols-4">
         <Card className="p-3"><div className="label">Type</div><TypeChip type={type} label={TYPE_LABEL[type]} /></Card>
