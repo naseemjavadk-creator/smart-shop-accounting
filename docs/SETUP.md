@@ -39,11 +39,13 @@ Claude (Anthropic) is optional and paid; see step 2b. Limits and terms of each f
    - `AUTH_SECRET` – a long random string (`openssl rand -base64 48`)
    - `GEMINI_API_KEY` – from step 2
    - `CRON_SECRET` – another random string
-   - `CRON_TIME_BUDGET_MS` – `15000` (Netlify stops a request after about 30 seconds)
    - `SETUP_CODE` – optional, a code needed to create the first owner account
    - Google Sheets variables – step 5
+   - `SECRETS_SCAN_OMIT_KEYS` – `SETUP_CODE` (see the note below)
 3. Deploy. Open the site: it goes to **/setup** the first time. Create the owner account.
 4. Every push to `main` redeploys. On the free plan each production deploy uses 15 of the 300 monthly credits, so avoid pushing many small changes.
+
+**"Secrets scanning found secrets in build"**: Netlify fails a build when the value of any environment variable also appears in the built files. Short values such as a 4–6 digit `SETUP_CODE` (or a number like `15000`) match ordinary code by chance. The real secrets (`DATABASE_URL`, `AUTH_SECRET`, `CRON_SECRET`, `GEMINI_API_KEY`) are only read on the server and are not written into the build (checked by building with marker values and searching `.next`). Fix: add `SECRETS_SCAN_OMIT_KEYS` with the names of the short, non-secret-looking variables, comma-separated (e.g. `SETUP_CODE,CRON_TIME_BUDGET_MS`), or delete `CRON_TIME_BUDGET_MS` (the default already fits Netlify). Never put `DATABASE_URL`, `AUTH_SECRET`, `CRON_SECRET` or `GEMINI_API_KEY` in that list.
 
 `netlify/functions/cron.mts` calls `/api/cron` **hourly** (Sheets retries and queued bills). Sheets sync and bill reading also run right after each entry/upload, so this is only a safety net. Hourly instead of every few minutes keeps the free Neon database asleep most of the time.
 

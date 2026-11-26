@@ -13,8 +13,9 @@ export async function GET(req: Request) {
   const started = Date.now();
   const sheets = await processSyncQueue(200).catch((e) => ({ error: String(e) }));
   let bills = 0;
-  // stop starting new bill reads after this long (default 200 s; use 15000 on hosts with a 30 s function limit)
-  const budget = Number(process.env.CRON_TIME_BUDGET_MS || 200_000);
+  // stop starting new bill reads after this long. Default 10 s suits hosts that stop requests at ~30 s (Netlify);
+  // on hosts with longer limits set CRON_TIME_BUDGET_MS higher (e.g. 200000 on Vercel Pro)
+  const budget = Number(process.env.CRON_TIME_BUDGET_MS || 10_000);
   while (Date.now() - started < budget) {
     const jobs = await nextQueuedJobs(1);
     if (!jobs.length) break;
