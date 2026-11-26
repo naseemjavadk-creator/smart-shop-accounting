@@ -11,20 +11,21 @@ async function patch(body: unknown) {
 }
 
 export function SettingsForms(props: {
-  shop: { name: string; trn: string; address: string; phone: string };
+  shop: { name: string; trn: string; address: string; phone: string; email?: string };
   vat: { registered: boolean; standard_rate: number; sales_prices_include_vat: boolean; purchase_prices_include_vat: boolean };
   sheets: { spreadsheet_id: string; enabled: boolean };
   ai: { monthly_budget_usd: number };
   usage: Usage;
   sync: { pending: number; done: number; failed: number; last_error: string | null; configured: boolean };
   serviceEmail: string | null;
-  features: { ai: boolean; stt: boolean; models: Record<string, string> };
+  features: { ai: boolean; stt: boolean; models: Record<string, string>; ownGeminiKey?: boolean; sharedGeminiKey?: boolean };
 }) {
   const router = useRouter();
   const [shop, setShop] = useState(props.shop);
   const [vat, setVat] = useState(props.vat);
   const [sheets, setSheets] = useState(props.sheets);
   const [budget, setBudget] = useState(props.ai.monthly_budget_usd);
+  const [gkey, setGkey] = useState("");
   const [msg, setMsg] = useState<Record<string, string>>({});
   const [imp, setImp] = useState({ tab: "Products", kind: "products" });
   const say = (k: string, m: string) => setMsg((x) => ({ ...x, [k]: m }));
@@ -49,9 +50,9 @@ export function SettingsForms(props: {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="space-y-3 p-5">
         <div className="font-semibold">Shop details</div>
-        {(["name", "trn", "address", "phone"] as const).map((k) => (
-          <div key={k}><label className="label">{k === "trn" ? "TRN (VAT number)" : k[0].toUpperCase() + k.slice(1)}</label>
-            <input className="input" value={shop[k]} onChange={(e) => setShop({ ...shop, [k]: e.target.value })} /></div>
+        {(["name", "trn", "address", "phone", "email"] as const).map((k) => (
+          <div key={k}><label className="label">{k === "trn" ? "Tax Registration Number (TRN)" : k === "name" ? "Company name" : k[0].toUpperCase() + k.slice(1)}</label>
+            <input className="input" value={shop[k] ?? ""} onChange={(e) => setShop({ ...shop, [k]: e.target.value })} /></div>
         ))}
         <button className="btn-primary" onClick={() => save("shop", { shop })}>Save</button> <span className="text-sm text-slate-500">{msg.shop}</span>
       </Card>
@@ -112,6 +113,22 @@ export function SettingsForms(props: {
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-brand-600" style={{ width: `${budget ? Math.min(100, (spent / budget) * 100) : 0}%` }} /></div>
         <p className="text-xs text-slate-500">Provider: {props.features.models.provider === "claude" ? "Claude (paid)" : "Gemini"}. Models: understanding {props.features.models.parse}, bills {props.features.models.ocr}, chat {props.features.models.chat}. When the budget is used up, AI features pause and manual entry keeps working. {msg.ai}</p>
+        {props.features.models.provider !== "claude" && (
+          <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+            <div className="text-sm font-medium">Your own Gemini key (optional)</div>
+            <p className="text-xs text-slate-500">
+              {props.features.ownGeminiKey ? "Your company uses its own key, so its free daily limit is yours alone."
+                : props.features.sharedGeminiKey ? "You are using the app's shared free key. All companies share its daily limit; add your own free key to get your own limit."
+                : "No AI key yet. Add a free key to turn on voice understanding, bill reading and AI chat."}
+              {" "}Get one free at aistudio.google.com/apikey. It is stored encrypted and never shown again.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input className="input w-72" type="password" autoComplete="off" placeholder={props.features.ownGeminiKey ? "•••••• (saved) – paste a new key to replace" : "Paste your Gemini API key"} value={gkey} onChange={(e) => setGkey(e.target.value)} />
+              <button className="btn-primary" disabled={!gkey.trim()} onClick={async () => { await save("ai", { gemini_key: gkey.trim() }); setGkey(""); }}>Save key</button>
+              {props.features.ownGeminiKey && <button className="btn-ghost text-rose-600" onClick={() => save("ai", { gemini_key: "" })}>Remove my key</button>}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

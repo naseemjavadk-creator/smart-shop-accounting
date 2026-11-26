@@ -53,7 +53,7 @@ export const POST = handle(async (req: Request) => {
       if (b.kind === "products") {
         const cat = pick(header, row, "category");
         const catId = cat ? (await q1<{ id: number }>(
-          `insert into categories (name) values ($1) on conflict (name) do update set name = excluded.name returning id`, [cat]))!.id : null;
+          `insert into categories (name) values ($1) on conflict (company_id, name) do update set name = excluded.name returning id`, [cat]))!.id : null;
         const exists = await q1(`select 1 from products where lower(name) = lower($1) and active`, [name]);
         if (exists) { skipped++; continue; }
         const unit = pick(header, row, "unit") ?? "piece";

@@ -136,3 +136,20 @@ Cash book, bank book, general ledger, trial balance, P&L, balance sheet, cash-fl
 ## Planned next
 
 Multi-branch stock transfers, product images, barcode scanning with the camera, recurring expenses, period closing / locking, FTA-format VAT 201 export, WhatsApp payment reminders.
+
+
+## Companies (multi-tenant)
+
+- `companies` table; every other table has `company_id` (default = the current company).
+- Row-level security is enabled and **forced** on all tables. Policy: `company_id = app_company()` (or `app_bypass()`
+  for sign-in lookups, the background worker's list of companies, and migrations).
+- The app opens a transaction for every query and sets `app.company_id` with `set_config(..., true)` (transaction-local,
+  safe with Neon's PgBouncer pooling). The company comes from the signed session (JWT claim `c`) or an explicit
+  `withCompany()` scope for background work. With no company set, no rows are visible.
+- Per-company uniqueness: product names, SKUs, party names, settings, account codes, file hashes, entry numbers
+  (each company starts at T000001), idempotency keys. Emails are unique across the app.
+- Offline entries remember the company they were made for; the phone and the server refuse to send them under another
+  company's login.
+- Each company may store its own Gemini key (AES-256-GCM, key derived from `AUTH_SECRET`).
+- Tests: `tests/e2e-companies.mjs` (two companies try to read/change each other's data). Run against a database role
+  that is not a superuser, because superusers skip row-level security.

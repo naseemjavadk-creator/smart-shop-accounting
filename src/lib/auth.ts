@@ -1,14 +1,16 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { q1 } from "./db";
+import { COOKIE, secret, sessionToken, verifySession } from "./session";
 
 export type Role = "owner" | "employee";
 export type Perm = "purchases" | "sales" | "expenses" | "reports" | "void" | "admin";
 
 export type SessionUser = {
   id: string;
+  company_id: string;
   email: string;
   name: string;
   role: Role;
@@ -19,14 +21,7 @@ export type SessionUser = {
   can_void: boolean;
 };
 
-const COOKIE = "shop_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days: employees stay signed in on shop phones
-
-function secret() {
-  const s = process.env.AUTH_SECRET;
-  if (!s || s.length < 32) throw new Error("AUTH_SECRET must be set (at least 32 characters)");
-  return new TextEncoder().encode(s);
-}
 
 export async function hashPassword(pw: string) {
   return bcrypt.hash(pw, 12);
@@ -36,8 +31,8 @@ export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);
 }
 
-export async function createSession(userId: string, version: number) {
-  const token = await new SignJWT({ v: version })
+export async function createSession(userId: string, version: number, companyId: string) {
+  const token = await new SignJWT({ v: version, c: companyId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -58,18 +53,21 @@ export async function destroySession() {
 
 /** The signed-in user, or null. Checks the account is still active and the session was not revoked. */
 export async function getUser(): Promise<SessionUser | null> {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const token = await sessionToken();
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret());
-    const u = await q1<SessionUser & { session_version: number; active: boolean }>(
-      `select id, email, name, role, can_purchases, can_sales, can_expenses, can_reports, can_void, session_version, active
-         from users where id = $1`,
+    const payload = await verifySession(token);
+    if (!payload?.c) return null; // sessions from before companies existed: sign in again
+    // the query runs for the session's company, so a user of another company is never found
+    const u = await q1<SessionUser & { session_version: number; active: boolean; company_active: boolean }>(
+      `select u.id, u.company_id, u.email, u.name, u.role, u.can_purchases, u.can_sales, u.can_expenses, u.can_reports, u.can_void,
+              u.session_version, u.active, c.active company_active
+         from users u join companies c on c.id = u.company_id where u.id = $1`,
       [payload.sub],
     );
-    if (!u || !u.active || u.session_version !== payload.v) return null;
+    if (!u || !u.active || !u.company_active || u.session_version !== payload.v || u.company_id !== payload.c) return null;
     return {
-      id: u.id, email: u.email, name: u.name, role: u.role,
+      id: u.id, company_id: u.company_id, email: u.email, name: u.name, role: u.role,
       can_purchases: u.can_purchases, can_sales: u.can_sales,
       can_expenses: u.can_expenses, can_reports: u.can_reports, can_void: u.can_void,
     };

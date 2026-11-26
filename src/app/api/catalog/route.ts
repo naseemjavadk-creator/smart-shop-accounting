@@ -3,7 +3,7 @@ import { handle } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { getSetting } from "@/lib/settings";
-import { aiConfigured } from "@/lib/ai/provider";
+import { aiReady } from "@/lib/ai/provider";
 import { sttConfigured } from "@/lib/ai/stt";
 
 /** Everything a phone needs to record entries offline. Cached on the device. */
@@ -19,7 +19,7 @@ export const GET = handle(async () => {
   ]);
   return NextResponse.json({
     user, products, parties, expenseAccounts, categories, vat,
-    features: { ai: aiConfigured(), stt: sttConfigured() },
+    features: { ai: await aiReady(), stt: await sttConfigured() },
     fetched_at: new Date().toISOString(),
   });
 });

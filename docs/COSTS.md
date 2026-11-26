@@ -27,6 +27,19 @@ The app records every AI call (Settings → AI usage) and enforces a monthly bud
 - **Where Gemini is offered:** the UAE and India are both on Google's list of countries where the Gemini API is available.
 - **If the free limits are too small:** turn on billing in Google AI Studio (Flash-Lite models cost a fraction of a cent per entry) and set `GEMINI_PRICE_INPUT` / `GEMINI_PRICE_OUTPUT` so the in-app budget cap counts the spend. Or switch to Claude.
 
+## When more companies sign up
+
+All companies share the same free plans, so the limits above are for everyone together:
+
+| Shared limit | What happens as companies join | What to do |
+|---|---|---|
+| Neon 1 GB storage | Bill photos fill it first (about 3,000–5,000 bills in total). When full, new entries cannot be saved; nothing is lost | Upgrade Neon (Launch plan, usage-based), or keep bill photos smaller |
+| Neon 100 compute-hours / month | Each company's use keeps the database awake longer. Roughly 5–10 small shops using it during the day fit | Upgrade Neon if it runs out (the database pauses until next month) |
+| Gemini free quota | One key's daily limit is shared by every company using the app's key | Ask each company to add **their own free Gemini key** in Settings → AI; optionally set `SHARED_AI_DAILY_LIMIT` |
+| Netlify 300 credits / month | More visitors use more requests and compute; deploys use the most | Fine for a handful of shops; upgrade Netlify (Personal) if needed |
+
+Nothing is charged automatically on these free plans: when a limit is reached the service pauses or refuses, it does not bill you.
+
 ## Optional paid upgrades
 
 | Item | Cost | When |

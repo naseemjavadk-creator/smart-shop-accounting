@@ -21,6 +21,21 @@ export function provider(): Provider {
 
 export const aiConfigured = () => (provider() === "gemini" ? !!process.env.GEMINI_API_KEY : !!process.env.ANTHROPIC_API_KEY);
 
+/** The Gemini key for the current company: its own key if the owner added one, else the app's shared key. */
+export async function geminiKey(): Promise<{ key: string | null; own: boolean }> {
+  const { getSetting } = await import("../settings");
+  const { decryptSecret } = await import("../crypto");
+  const s = await getSetting("ai_key").catch(() => ({} as { gemini?: string }));
+  const own = s.gemini ? decryptSecret(s.gemini) : null;
+  return own ? { key: own, own: true } : { key: process.env.GEMINI_API_KEY || null, own: false };
+}
+
+/** AI is usable for this company (provider key on the server, or the company's own Gemini key). */
+export async function aiReady(): Promise<boolean> {
+  if (provider() === "claude") return !!process.env.ANTHROPIC_API_KEY;
+  return !!(await geminiKey()).key;
+}
+
 export type Feature = "parse" | "ocr" | "chat";
 
 const GEMINI_DEFAULT = "gemini-flash-latest";

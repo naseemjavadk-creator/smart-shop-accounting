@@ -4,6 +4,7 @@ import { handle } from "@/lib/api";
 import { requireUser, HttpError } from "@/lib/auth";
 import { postTransaction } from "@/lib/accounting/post";
 import { processSyncQueue } from "@/lib/sheets/sync";
+import { withCompany } from "@/lib/db";
 
 /**
  * Offline outbox upload. Each entry carries the idempotency key created on the phone,
@@ -15,6 +16,11 @@ export const POST = handle(async (req: Request) => {
   const results = [];
   for (const e of entries) {
     const key = (e as { idempotency_key?: string })?.idempotency_key ?? null;
+    const company = (e as { company_id?: string })?.company_id;
+    if (company && company !== user.company_id) {
+      results.push({ idempotency_key: key, ok: false, retry: false, error: "Entered under another company's login on this phone. Sign in to that company to send it." });
+      continue;
+    }
     try {
       const r = await postTransaction(e, user);
       results.push({ idempotency_key: key, ok: true, ...r });
@@ -26,6 +32,6 @@ export const POST = handle(async (req: Request) => {
         (err as { constraint?: string }).constraint === "transactions_supplier_invoice_uq" ? "This supplier bill is already saved." : message });
     }
   }
-  after(() => processSyncQueue(50).catch(() => {}));
+  after(() => withCompany(user.company_id, () => processSyncQueue(50)).catch(() => {}));
   return NextResponse.json({ results });
 });

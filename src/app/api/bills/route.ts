@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createHash } from "crypto";
 import { handle } from "@/lib/api";
 import { requireUser, HttpError } from "@/lib/auth";
-import { q, q1 } from "@/lib/db";
+import { q, q1, withCompany } from "@/lib/db";
 import { processOcrJob } from "@/lib/ai/ocr";
 
 export const maxDuration = 300;
@@ -31,7 +31,7 @@ export const POST = handle(async (req: Request) => {
   }
   // start reading in the background; the cron job picks up anything left
   const ids = out.filter((o) => o.status === "queued" && o.job_id).map((o) => o.job_id as string);
-  after(async () => { for (const id of ids) await processOcrJob(id).catch(() => {}); });
+  after(() => withCompany(user.company_id, async () => { for (const id of ids) await processOcrJob(id).catch(() => {}); }));
   return NextResponse.json({ jobs: out });
 });
 

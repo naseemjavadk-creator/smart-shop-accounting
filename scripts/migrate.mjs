@@ -11,6 +11,8 @@ if (!url) { console.error("Set DATABASE_URL"); process.exit(1); }
 const local = /localhost|127\.0\.0\.1/.test(url);
 const client = new pg.Client({ connectionString: url, ssl: local ? undefined : { rejectUnauthorized: false } });
 await client.connect();
+// migrations work on all companies' rows (row-level security would otherwise hide them)
+await client.query(`select set_config('app.bypass', 'on', false)`);
 await client.query(`create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())`);
 const done = new Set((await client.query(`select name from schema_migrations`)).rows.map((r) => r.name));
 for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {

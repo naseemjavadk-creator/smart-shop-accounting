@@ -5,7 +5,7 @@ export type CatalogProduct = {
 };
 export type CatalogParty = { id: string; kind: "supplier" | "customer"; name: string; phone: string | null };
 export type Catalog = {
-  user: { id: string; name: string; role: "owner" | "employee"; can_purchases: boolean; can_sales: boolean; can_expenses: boolean; can_reports: boolean; can_void?: boolean };
+  user: { id: string; company_id?: string; name: string; role: "owner" | "employee"; can_purchases: boolean; can_sales: boolean; can_expenses: boolean; can_reports: boolean; can_void?: boolean };
   products: CatalogProduct[];
   parties: CatalogParty[];
   expenseAccounts: { id: number; code: string; name: string }[];
@@ -68,6 +68,7 @@ export type OutboxItem = {
 export type PendingItem = {
   id: string;
   kind: "voice" | "bill";
+  company_id?: string;
   text?: string;
   blob?: Blob;
   filename?: string;

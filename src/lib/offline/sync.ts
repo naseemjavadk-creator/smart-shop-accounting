@@ -30,9 +30,11 @@ export async function refreshCatalog(): Promise<Catalog | null> {
 /** Save a confirmed entry on this device. It is synced to the cloud as soon as possible. */
 export async function saveEntry(payload: Record<string, unknown>, summary: string, total: number): Promise<OutboxItem> {
   const key = (payload.idempotency_key as string) || `${await deviceId()}:${uuid()}`;
+  // remember which company this was entered for, so it can never be sent under another company's login
+  const company_id = (await getCatalog())?.user.company_id;
   const item: OutboxItem = {
     key, summary, total, status: "pending", attempts: 0, created_at: new Date().toISOString(),
-    payload: { ...payload, idempotency_key: key, device_id: await deviceId() },
+    payload: { ...payload, idempotency_key: key, device_id: await deviceId(), company_id },
   };
   await idb.put("outbox", item);
   notify();
@@ -58,7 +60,8 @@ export async function retryOutbox(key: string, payload?: Record<string, unknown>
 }
 
 export async function savePending(p: Omit<PendingItem, "id" | "created_at">) {
-  await idb.put("pending", { ...p, id: uuid(), created_at: new Date().toISOString() });
+  const company_id = (await getCatalog())?.user.company_id;
+  await idb.put("pending", { ...p, company_id, id: uuid(), created_at: new Date().toISOString() });
   notify();
 }
 export const pendingItems = () => idb.all<PendingItem>("pending");
@@ -72,7 +75,9 @@ export function syncNow(): Promise<void> {
   running = (async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
     const all = await idb.all<OutboxItem>("outbox");
-    const waiting = all.filter((i) => i.status === "pending" || i.status === "syncing");
+    const company = (await getCatalog())?.user.company_id;
+    const mine = (c: unknown) => !c || !company || c === company;
+    const waiting = all.filter((i) => (i.status === "pending" || i.status === "syncing") && mine(i.payload.company_id));
     for (let i = 0; i < waiting.length; i += 20) {
       const batch = waiting.slice(i, i + 20);
       for (const it of batch) await idb.put("outbox", { ...it, status: "syncing", attempts: it.attempts + 1 });
@@ -104,7 +109,7 @@ export function syncNow(): Promise<void> {
     }
     // upload bill photos taken while offline
     for (const p of await idb.all<PendingItem>("pending")) {
-      if (p.kind !== "bill" || !p.blob) continue;
+      if (p.kind !== "bill" || !p.blob || !mine(p.company_id)) continue;
       const fd = new FormData();
       fd.append("files", p.blob, p.filename || "bill.jpg");
       try {

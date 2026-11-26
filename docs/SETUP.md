@@ -51,6 +51,15 @@ Claude (Anthropic) is optional and paid; see step 2b. Limits and terms of each f
 
 Other hosts: the same code runs on Vercel (`vercel.json`; Hobby is non-commercial only, Pro is about USD 20/month), Render, Railway or any Node server (`npm run build && npm start`). Use any scheduler (e.g. cron-job.org, free) to call `GET /api/cron` with header `Authorization: Bearer <CRON_SECRET>`.
 
+## Many companies (sign-up)
+
+Anyone with the link can create their own company at **/setup** ("Create a free account" on the sign-in page): company name, TRN (optional), address, VAT settings, and their own owner email + password. Each company only ever sees its own data.
+
+- `SETUP_CODE` set → it works as an **invite code**: people need it to sign up. Remove it to let anyone sign up.
+- `ALLOW_SIGNUP=false` → no new companies can be created.
+- `SHARED_AI_DAILY_LIMIT` (optional, e.g. `50`) → each company may make at most this many Gemini requests a day on the app's shared key, so one company cannot use up everyone's free quota. Companies can add their own free Gemini key in Settings → AI and are then not limited by the app.
+- How data is kept apart: every row has a `company_id`, and PostgreSQL row-level security only shows rows of the signed-in user's company (see ARCHITECTURE.md). An email address belongs to one company.
+
 ## 4. First use
 
 1. Settings → Shop details: name, TRN, address. Settings → VAT: registered or not, rate (5 %), whether shelf prices include VAT.

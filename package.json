@@ -10,7 +10,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node tests/e2e-accounting.mjs",
-    "test:gemini": "node tests/gemini-mock.mjs"
+    "test:gemini": "node tests/gemini-mock.mjs",
+    "test:companies": "node tests/e2e-companies.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.14.0",

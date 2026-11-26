@@ -55,7 +55,7 @@ async function call(method, path, body, form) {
 }
 let n = 0; const ok = (m) => console.log(`✓ ${++n}. ${m}`);
 try {
-  let r = await call("POST", "/api/auth/setup", { shop_name: "Mock Shop", name: "Owner", email: "owner@mock.ae", password: "password123" });
+  let r = await call("POST", "/api/auth/setup", { shop_name: "Mock Shop", name: "Owner", email: `owner${Date.now()}@mock.ae`, password: "password123" });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   r = await call("GET", "/api/catalog");
   assert.equal(r.body.features.ai, true); assert.equal(r.body.features.stt, true); ok("AI and server speech shown as available with only GEMINI_API_KEY");
@@ -92,5 +92,12 @@ try {
   }
   assert.ok(job, "bill processed"); assert.equal(job.status, "review", JSON.stringify(job));
   ok("bill photo read via Gemini (inline image) → review draft");
+  const fd2 = new FormData(); fd2.append("file", new Blob([png], { type: "image/png" }), "note.png"); fd2.append("type", "sale");
+  r = await call("POST", "/api/ai/read-file", null, fd2);
+  assert.equal(r.status, 200, JSON.stringify(r.body)); assert.ok(r.body.file_id); assert.equal(r.body.transactions[0].type, "sale");
+  const fr = seen.at(-1);
+  assert.ok(fr.body.contents[0].parts.some((p) => p.inlineData), "file sent to AI");
+  assert.match(fr.body.contents[0].parts.at(-1).text, /"Sale" screen/);
+  ok("photo/file on the Sale screen → read into a sale draft with the screen as a hint");
   console.log("All Gemini mock checks passed");
 } catch (e) { console.error(e); process.exitCode = 1; } finally { srv.close(); }

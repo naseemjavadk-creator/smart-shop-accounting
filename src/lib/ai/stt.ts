@@ -1,19 +1,20 @@
 import "server-only";
 import { q } from "../db";
 import { HttpError } from "../auth";
+import { geminiKey } from "./provider";
 
 /**
  * Optional server speech-to-text for phones where the browser's built-in recogniser is weak (e.g. Malayalam on iPhone).
  * Uses Google Gemini (free tier available) because Claude does not take audio input.
  * Enabled whenever GEMINI_API_KEY is set, whichever AI provider is chosen for the other features.
  */
-export const sttConfigured = () => !!process.env.GEMINI_API_KEY;
+export const sttConfigured = async () => !!(await geminiKey()).key;
 
 const MODEL = process.env.GEMINI_STT_MODEL || process.env.GEMINI_MODEL || "gemini-flash-latest";
 
 export async function transcribe(audio: Buffer, mime: string, userId: string): Promise<string> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new HttpError(503, "Server speech-to-text is not set up (GEMINI_API_KEY)");
+  const { key } = await geminiKey();
+  if (!key) throw new HttpError(503, "Gemini voice is not set up: add a Gemini key in Settings → AI");
   if (audio.length > 15 * 1024 * 1024) throw new HttpError(413, "Recording is too long");
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
     method: "POST",

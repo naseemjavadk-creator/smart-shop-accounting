@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +31,7 @@ export default function LoginPage() {
       </div>
       {err && <p className="text-sm text-rose-600">{err}</p>}
       <button className="btn-primary w-full py-3" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      <p className="text-center text-sm text-slate-500">New company? <Link className="font-medium text-brand-600" href="/setup">Create a free account</Link></p>
     </form>
   );
 }

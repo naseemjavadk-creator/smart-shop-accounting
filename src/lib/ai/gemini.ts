@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { HttpError } from "../auth";
 import { logUsage } from "./claude";
-import { GEMINI_FALLBACKS } from "./provider";
+import { GEMINI_FALLBACKS, geminiKey } from "./provider";
 
 /**
  * Small REST client for the Google Gemini API (generateContent). No SDK, so it runs on any Node host.
@@ -31,19 +31,33 @@ const TIMEOUT = () => Number(process.env.GEMINI_TIMEOUT_MS || 50_000);
 
 export const geminiConfigured = () => !!process.env.GEMINI_API_KEY;
 
-function key() {
-  const k = process.env.GEMINI_API_KEY;
-  if (!k) throw new HttpError(503, "AI is not set up yet: add GEMINI_API_KEY on the server (free key from aistudio.google.com)");
+async function key() {
+  const { key: k } = await geminiKey();
+  if (!k) throw new HttpError(503, "AI is not set up yet: add a Gemini key in Settings → AI (free from aistudio.google.com)");
   return k;
+}
+
+/**
+ * Optional fairness on the app's shared free key: SHARED_AI_DAILY_LIMIT caps how many Gemini requests one company
+ * may make per day on the shared key (companies with their own key are not limited by the app).
+ */
+async function fairShare() {
+  const limit = Number(process.env.SHARED_AI_DAILY_LIMIT || 0);
+  if (!limit || (await geminiKey()).own) return;
+  const { q1 } = await import("../db");
+  const r = await q1<{ n: string }>(`select count(*) n from ai_usage where model like 'gemini%' and created_at >= date_trunc('day', now() at time zone 'America/Los_Angeles') at time zone 'America/Los_Angeles'`);
+  if (Number(r?.n ?? 0) >= limit) {
+    throw new HttpError(429, "Your company has used today's share of the free AI. Add your own free Gemini key in Settings → AI, or enter it by hand.");
+  }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function call(model: string, body: Record<string, unknown>): Promise<{ status: number; json: GResponse & { error?: { message?: string; status?: string } } }> {
+async function call(model: string, body: Record<string, unknown>, apiKey: string): Promise<{ status: number; json: GResponse & { error?: { message?: string; status?: string } } }> {
   try {
     const res = await fetch(`${BASE()}/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key() },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT()),
     });
@@ -76,11 +90,13 @@ export async function generate(opts: {
   const models = [opts.model, ...GEMINI_FALLBACKS.filter((m) => m !== opts.model)];
   const attempts: string[] = [...models, models[models.length - 1]];
   let last: { status: number; msg: string } = { status: 0, msg: "" };
+  const apiKey = await key();
+  await fairShare();
 
   for (let i = 0; i < attempts.length; i++) {
     const model = attempts[i];
     if (i === attempts.length - 1) await sleep(2000);
-    const { status, json } = await call(model, body);
+    const { status, json } = await call(model, body, apiKey);
     if (status === 200) {
       const u = json.usageMetadata ?? {};
       const cost = await logUsage(opts.feature, json.modelVersion || model, {

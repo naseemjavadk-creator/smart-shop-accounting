@@ -15,8 +15,8 @@ let n = 0; const ok = (m) => console.log(`✓ ${++n}. ${m}`);
 
 let r = await call("POST", "/api/auth/setup", { shop_name: "Test Shop", name: "Owner", email: "owner@test.ae", password: "password123" });
 assert.equal(r.status, 200, JSON.stringify(r.body)); ok("owner setup");
-r = await call("POST", "/api/auth/setup", { shop_name: "X", name: "X", email: "x@test.ae", password: "password123" });
-assert.equal(r.status, 409); ok("second setup blocked");
+r = await call("POST", "/api/auth/setup", { shop_name: "X", name: "X", email: "owner@test.ae", password: "password123" });
+assert.equal(r.status, 409); ok("same email cannot sign up twice");
 
 // purchase 20 boxes pens for 100 (excl VAT) on credit from supplier → new product, AP 105
 const pur = { type: "purchase", txn_date: today, idempotency_key: key(), party_name: "Al Noor Stationery", payment_method: "credit", invoice_no: "INV-1",

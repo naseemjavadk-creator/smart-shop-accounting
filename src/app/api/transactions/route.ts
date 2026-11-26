@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { handle } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { withCompany } from "@/lib/db";
 import { postTransaction } from "@/lib/accounting/post";
 import { listTransactions } from "@/lib/reports";
 import { rangeFor, type RangeKey } from "@/lib/dates";
@@ -21,6 +22,6 @@ export const GET = handle(async (req: Request) => {
 export const POST = handle(async (req: Request) => {
   const user = await requireUser();
   const res = await postTransaction(await req.json(), user);
-  after(() => processSyncQueue(20).catch((e) => console.error("sheets sync", e)));
+  after(() => withCompany(user.company_id, () => processSyncQueue(20)).catch((e) => console.error("sheets sync", e)));
   return NextResponse.json(res, { status: res.duplicate ? 200 : 201 });
 });
