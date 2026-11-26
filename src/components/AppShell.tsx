@@ -5,13 +5,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   LayoutDashboard, Mic, ShoppingCart, Receipt, Wallet, ScanLine, Boxes, MessageSquareText, BarChart3,
-  Settings, Users, Moon, Sun, LogOut, ListOrdered, Menu, X, CloudUpload,
+  Settings, Users, Moon, Sun, LogOut, ListOrdered, X, CloudUpload, LayoutGrid,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { SyncBadge } from "./SyncBadge";
 import { startSyncLoop, refreshCatalog } from "@/lib/offline/sync";
 
-type Item = { href: string; label: string; icon: typeof Mic; show: boolean };
+type Item = { href: string; label: string; icon: typeof Mic; show: boolean; color: string };
 
 export function AppShell({ user, shopName, children }: { user: SessionUser; shopName: string; children: ReactNode }) {
   const path = usePathname();
@@ -31,19 +31,19 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
   useEffect(() => setOpen(false), [path]);
 
   const items: Item[] = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/entry", label: "Voice entry", icon: Mic, show: true },
-    { href: "/new/sale", label: "Add sale", icon: ShoppingCart, show: owner || user.can_sales },
-    { href: "/new/purchase", label: "Add purchase", icon: Receipt, show: owner || user.can_purchases },
-    { href: "/new/expense", label: "Add expense", icon: Wallet, show: owner || user.can_expenses },
-    { href: "/scan", label: "Scan bills", icon: ScanLine, show: owner || user.can_purchases },
-    { href: "/inventory", label: "Inventory", icon: Boxes, show: true },
-    { href: "/transactions", label: "Transactions", icon: ListOrdered, show: reports },
-    { href: "/parties", label: "Customers & suppliers", icon: Users, show: true },
-    { href: "/chat", label: "AI accounting chat", icon: MessageSquareText, show: reports },
-    { href: "/reports", label: "Reports", icon: BarChart3, show: reports },
-    { href: "/outbox", label: "Saved on this phone", icon: CloudUpload, show: true },
-    { href: "/settings", label: "Settings", icon: Settings, show: owner },
+    { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true, color: "bg-slate-600" },
+    { href: "/entry", label: "Voice entry", icon: Mic, show: true, color: "bg-brand-600" },
+    { href: "/new/sale", label: "Add sale", icon: ShoppingCart, show: owner || user.can_sales, color: "bg-emerald-600" },
+    { href: "/new/purchase", label: "Add purchase", icon: Receipt, show: owner || user.can_purchases, color: "bg-sky-600" },
+    { href: "/new/expense", label: "Add expense", icon: Wallet, show: owner || user.can_expenses, color: "bg-amber-500" },
+    { href: "/scan", label: "Scan bills", icon: ScanLine, show: owner || user.can_purchases, color: "bg-violet-600" },
+    { href: "/inventory", label: "Inventory", icon: Boxes, show: true, color: "bg-orange-500" },
+    { href: "/transactions", label: "Transactions", icon: ListOrdered, show: reports, color: "bg-cyan-600" },
+    { href: "/parties", label: "Customers & suppliers", icon: Users, show: true, color: "bg-pink-600" },
+    { href: "/chat", label: "AI accounting chat", icon: MessageSquareText, show: reports, color: "bg-indigo-600" },
+    { href: "/reports", label: "Reports", icon: BarChart3, show: reports, color: "bg-teal-600" },
+    { href: "/outbox", label: "Saved on this phone", icon: CloudUpload, show: true, color: "bg-lime-600" },
+    { href: "/settings", label: "Settings", icon: Settings, show: owner, color: "bg-slate-500" },
   ];
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
 
@@ -70,13 +70,33 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
     </nav>
   );
 
-  const bottom = [
-    { href: "/", label: "Home", icon: LayoutDashboard },
-    { href: "/inventory", label: "Stock", icon: Boxes },
-    { href: "/entry", label: "Speak", icon: Mic, big: true },
-    { href: "/scan", label: "Scan", icon: ScanLine },
-    { href: reports ? "/chat" : "/outbox", label: reports ? "Ask AI" : "Saved", icon: reports ? MessageSquareText : CloudUpload },
-  ];
+  // phone bottom bar: the four most-used actions (the ones this user may do) + "More" for everything else
+  const pick = (h: string) => items.find((i) => i.href === h && i.show);
+  const bottom = (["/new/sale", "/new/purchase", "/scan", "/new/expense", "/inventory", "/"] as const)
+    .map(pick).filter((i): i is Item => !!i).slice(0, 3);
+  const short: Record<string, string> = { "/new/sale": "Sale", "/new/purchase": "Purchase", "/scan": "Scan", "/new/expense": "Expense", "/inventory": "Stock", "/": "Home" };
+  const bar = [bottom[0], bottom[1], { href: "/entry", label: "Speak", icon: Mic, big: true }, bottom[2]].filter(Boolean) as { href: string; label: string; icon: typeof Mic; big?: boolean }[];
+
+  const tiles = (
+    <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-4">
+      {items.filter((i) => i.show).map((i) => (
+        <Link key={i.href} href={i.href} onClick={() => setOpen(false)}
+          className={clsx("card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold leading-tight active:scale-95",
+            active(i.href) && "!border-brand-500 ring-2 ring-brand-500/30")}>
+          <span className={clsx("flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-sm", i.color)}><i.icon size={26} /></span>
+          {i.label}
+        </Link>
+      ))}
+      <button onClick={toggleTheme} className="card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold active:scale-95">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900">{dark ? <Sun size={26} /> : <Moon size={26} />}</span>
+        {dark ? "Light mode" : "Dark mode"}
+      </button>
+      <button onClick={logout} className="card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold active:scale-95">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-600 text-white"><LogOut size={26} /></span>
+        Sign out
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex min-h-dvh">
@@ -97,8 +117,7 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-30 flex items-center gap-2 border-b border-slate-200 bg-white/90 px-4 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90" style={{ paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}>
-          <button className="btn-ghost -ml-2 px-2 lg:hidden" onClick={() => setOpen(true)} aria-label="Menu"><Menu size={22} /></button>
-          <div className="truncate font-semibold lg:hidden">{shopName}</div>
+          <Link href="/" className="truncate font-semibold lg:hidden">{shopName}</Link>
           <div className="ml-auto flex items-center gap-2"><SyncBadge /></div>
         </header>
 
@@ -106,32 +125,29 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
 
         <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <div className="grid grid-cols-5 items-end">
-            {bottom.map((b) => (
-              <Link key={b.href + b.label} href={b.href} className={clsx("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", active(b.href) ? "text-brand-600" : "text-slate-500")}>
+            {bar.map((b) => (
+              <Link key={b.href} href={b.href} className={clsx("flex flex-col items-center gap-0.5 py-2 text-xs font-semibold", active(b.href) ? "text-brand-600" : "text-slate-600 dark:text-slate-300")}>
                 {b.big ? (
-                  <span className="-mt-7 flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-4 ring-white dark:ring-slate-900"><b.icon size={28} /></span>
-                ) : <b.icon size={22} />}
-                {b.label}
+                  <span className="-mt-7 flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-4 ring-white dark:ring-slate-900"><b.icon size={30} /></span>
+                ) : <b.icon size={24} />}
+                {b.big ? b.label : short[b.href] ?? b.label}
               </Link>
             ))}
+            {Array.from({ length: Math.max(0, 4 - bar.length) }).map((_, k) => <span key={k} />)}
+            <button onClick={() => setOpen(true)} className={clsx("flex flex-col items-center gap-0.5 py-2 text-xs font-semibold", open ? "text-brand-600" : "text-slate-600 dark:text-slate-300")}>
+              <LayoutGrid size={24} /> More
+            </button>
           </div>
         </nav>
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl dark:bg-slate-900">
-            <div className="flex items-center justify-between px-5 pt-5">
-              <div><div className="text-xs font-semibold uppercase tracking-wider text-brand-600">Smart Shop</div><div className="font-bold">{shopName}</div></div>
-              <button className="btn-ghost px-2" onClick={() => setOpen(false)}><X size={20} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto">{nav}</div>
-            <div className="flex gap-1 border-t border-slate-200 p-3 dark:border-slate-800">
-              <button className="btn-ghost flex-1" onClick={toggleTheme}>{dark ? <Sun size={16} /> : <Moon size={16} />} Theme</button>
-              <button className="btn-ghost flex-1" onClick={logout}><LogOut size={16} /> Sign out</button>
-            </div>
+        <div className="no-print fixed inset-0 z-40 flex flex-col bg-slate-50 dark:bg-slate-950 lg:hidden" role="dialog" aria-label="Menu">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+            <div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wider text-brand-600">Smart Shop</div><div className="truncate font-bold">{shopName}</div><div className="text-xs text-slate-500">{user.name} · {owner ? "Owner" : "Employee"}</div></div>
+            <button className="btn-secondary px-3" onClick={() => setOpen(false)} aria-label="Close"><X size={22} /></button>
           </div>
+          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>{tiles}</div>
         </div>
       )}
     </div>

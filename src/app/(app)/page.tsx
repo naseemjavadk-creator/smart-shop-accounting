@@ -10,14 +10,14 @@ import { DailyChart, MonthlyChart } from "@/components/Charts";
 import { TYPE_LABEL, type TxnType } from "@/lib/accounting/schema";
 
 const actions = [
-  { href: "/entry", label: "Voice entry", icon: Mic, tone: "!border-brand-600 !bg-brand-600 !text-white" },
-  { href: "/new/purchase", label: "Add purchase", icon: Receipt, perm: "purchases" },
-  { href: "/new/sale", label: "Add sale", icon: ShoppingCart, perm: "sales" },
-  { href: "/new/expense", label: "Add expense", icon: Wallet, perm: "expenses" },
-  { href: "/scan", label: "Scan bill", icon: ScanLine, perm: "purchases" },
-  { href: "/inventory", label: "Inventory", icon: Boxes },
-  { href: "/chat", label: "AI accounting chat", icon: MessageSquareText, perm: "reports" },
-  { href: "/reports", label: "Reports", icon: BarChart3, perm: "reports" },
+  { href: "/entry", label: "Voice entry", icon: Mic, color: "bg-brand-600" },
+  { href: "/new/purchase", label: "Add purchase", icon: Receipt, perm: "purchases", color: "bg-sky-600" },
+  { href: "/new/sale", label: "Add sale", icon: ShoppingCart, perm: "sales", color: "bg-emerald-600" },
+  { href: "/new/expense", label: "Add expense", icon: Wallet, perm: "expenses", color: "bg-amber-500" },
+  { href: "/scan", label: "Scan bill", icon: ScanLine, perm: "purchases", color: "bg-violet-600" },
+  { href: "/inventory", label: "Inventory", icon: Boxes, color: "bg-orange-500" },
+  { href: "/chat", label: "AI accounting chat", icon: MessageSquareText, perm: "reports", color: "bg-indigo-600" },
+  { href: "/reports", label: "Reports", icon: BarChart3, perm: "reports", color: "bg-teal-600" },
 ] as const;
 
 export default async function Dashboard() {
@@ -28,8 +28,8 @@ export default async function Dashboard() {
   const quick = (
     <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
       {actions.filter((a) => !("perm" in a) || can(user, a.perm)).map((a) => (
-        <Link key={a.href} href={a.href} className={`card flex flex-col items-center gap-1.5 p-3 text-center text-xs font-medium hover:border-brand-500 ${"tone" in a ? a.tone : ""}`}>
-          <a.icon size={24} /> {a.label}
+        <Link key={a.href} href={a.href} className="card flex flex-col items-center gap-1.5 p-2.5 text-center text-xs font-semibold leading-tight hover:border-brand-500 active:scale-95">
+          <span className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white ${a.color}`}><a.icon size={24} /></span> {a.label}
         </Link>
       ))}
     </div>
