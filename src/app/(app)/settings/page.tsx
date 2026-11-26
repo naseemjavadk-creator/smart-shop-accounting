@@ -5,7 +5,7 @@ import { q } from "@/lib/db";
 import { aiUsageThisMonth } from "@/lib/reports";
 import { monthStart, todayISO } from "@/lib/dates";
 import { syncStatus } from "@/lib/sheets/sync";
-import { aiConfigured, MODELS } from "@/lib/ai/claude";
+import { aiConfigured, modelsInUse } from "@/lib/ai/provider";
 import { sttConfigured } from "@/lib/ai/stt";
 import { PageHeader, Card } from "@/components/ui";
 import { SettingsForms, UsersAdmin } from "@/components/SettingsForms";
@@ -25,7 +25,7 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" subtitle="Owner only" />
       <SettingsForms shop={shop} vat={vat} sheets={sheets} ai={ai} usage={usage} sync={sync}
         serviceEmail={process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? null}
-        features={{ ai: aiConfigured(), stt: sttConfigured(), models: MODELS }} />
+        features={{ ai: aiConfigured(), stt: sttConfigured(), models: modelsInUse() }} />
       <UsersAdmin users={users as never} meId={user.id} />
       <Card className="overflow-x-auto">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">

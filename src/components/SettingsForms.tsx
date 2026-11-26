@@ -97,11 +97,12 @@ export function SettingsForms(props: {
 
       <Card className="space-y-3 p-5">
         <div className="font-semibold">AI usage & cost (this month)</div>
-        {!props.features.ai && <p className="text-sm text-amber-700">AI is off: add ANTHROPIC_API_KEY on the server. Manual entry still works.</p>}
+        {!props.features.ai && <p className="text-sm text-amber-700">AI is off: add {props.features.models.provider === "claude" ? "ANTHROPIC_API_KEY" : "GEMINI_API_KEY (free from aistudio.google.com)"} on the server. Manual entry still works.</p>}
+        {props.features.models.provider === "gemini" && <p className="text-xs text-slate-500">AI service: Google Gemini. On Gemini&apos;s free tier the cost shows as 0, requests per minute and per day are limited, and Google may use what is sent (entries, bill images, questions) to improve its products. Turn on Google billing, or switch to Claude, if that matters.</p>}
         <table className="table">
           <thead><tr><th>Feature</th><th className="num">Uses</th><th className="num">Cost (USD)</th></tr></thead>
           <tbody>
-            {props.usage.map((u) => <tr key={u.feature}><td className="capitalize">{u.feature === "parse" ? "Voice/text understanding" : u.feature === "ocr" ? "Bill reading" : u.feature === "stt" ? "Speech-to-text (Gemini free tier)" : "AI chat"}</td><td className="num">{u.calls}</td><td className="num">{u.cost_usd.toFixed(4)}</td></tr>)}
+            {props.usage.map((u) => <tr key={u.feature}><td className="capitalize">{u.feature === "parse" ? "Voice/text understanding" : u.feature === "ocr" ? "Bill reading" : u.feature === "stt" ? "Speech-to-text (Gemini)" : "AI chat"}</td><td className="num">{u.calls}</td><td className="num">{u.cost_usd.toFixed(4)}</td></tr>)}
             <tr className="font-semibold"><td>Total</td><td /><td className="num">{spent.toFixed(4)}</td></tr>
           </tbody>
         </table>
@@ -110,7 +111,7 @@ export function SettingsForms(props: {
           <button className="btn-primary" onClick={() => save("ai", { ai: { monthly_budget_usd: budget } })}>Save</button>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-brand-600" style={{ width: `${budget ? Math.min(100, (spent / budget) * 100) : 0}%` }} /></div>
-        <p className="text-xs text-slate-500">Models: understanding {props.features.models.parse}, bills {props.features.models.ocr}, chat {props.features.models.chat}. When the budget is used up, AI features pause and manual entry keeps working. {msg.ai}</p>
+        <p className="text-xs text-slate-500">Provider: {props.features.models.provider === "claude" ? "Claude (paid)" : "Gemini"}. Models: understanding {props.features.models.parse}, bills {props.features.models.ocr}, chat {props.features.models.chat}. When the budget is used up, AI features pause and manual entry keeps working. {msg.ai}</p>
       </Card>
     </div>
   );

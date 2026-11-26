@@ -1,7 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { claude, MODELS, FALLBACK, logUsage, assertBudget, refusalText } from "./claude";
+import { claude, FALLBACK, logUsage, assertBudget, refusalText } from "./claude";
+import { provider, CLAUDE_MODELS, GEMINI_MODELS } from "./provider";
+import { generateJSON } from "./gemini";
 import { q, num } from "../db";
 import { addDays, todayISO } from "../dates";
 import { r2, r4 } from "../money";
@@ -105,26 +107,34 @@ export async function parseTransactionText(text: string, userId: string): Promis
     `Known customers: ${cat.customers.join(", ") || "none"}`,
   ].join("\n");
 
-  const model = MODELS.parse;
-  const msg = await claude().beta.messages.parse({
-    model,
-    max_tokens: 8000,
-    ...FALLBACK,
-    system: SYSTEM,
-    output_config: { effort: "low", format: betaZodOutputFormat(DraftSchema) },
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: context, cache_control: { type: "ephemeral" } },
-        { type: "text", text: `The employee said:\n"""${clean}"""` },
-      ],
-    }],
-  });
-  const cost = await logUsage("parse", msg.model ?? model, msg.usage, userId);
-  const refused = refusalText(msg);
-  if (refused) throw new HttpError(422, refused);
-  const draft = msg.parsed_output;
-  if (!draft) throw new HttpError(422, "Could not understand. Please try again or type it.");
+  const said = `The employee said:\n"""${clean}"""`;
+  let draft: Draft, cost: number;
+  if (provider() === "gemini") {
+    const r = await generateJSON({ feature: "parse", model: GEMINI_MODELS.parse, userId, system: SYSTEM,
+      parts: [{ text: context }, { text: said }], schema: DraftSchema });
+    draft = r.data; cost = r.cost;
+  } else {
+    const model = CLAUDE_MODELS.parse;
+    const msg = await claude().beta.messages.parse({
+      model,
+      max_tokens: 8000,
+      ...FALLBACK,
+      system: SYSTEM,
+      output_config: { effort: "low", format: betaZodOutputFormat(DraftSchema) },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: context, cache_control: { type: "ephemeral" } },
+          { type: "text", text: said },
+        ],
+      }],
+    });
+    cost = await logUsage("parse", msg.model ?? model, msg.usage, userId);
+    const refused = refusalText(msg);
+    if (refused) throw new HttpError(422, refused);
+    if (!msg.parsed_output) throw new HttpError(422, "Could not understand. Please try again or type it.");
+    draft = msg.parsed_output;
+  }
 
   const byId = new Map(cat.products.map((p) => [p.id, p]));
   const validExpense = new Set(cat.expenseAccounts.map((a) => a.id));

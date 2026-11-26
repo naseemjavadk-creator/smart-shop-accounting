@@ -9,10 +9,10 @@
  └─ Speech: the browser's built-in recogniser (free); optional server speech-to-text
           │  HTTPS (session cookie)
           ▼
- Next.js 16 app (Vercel or any Node host)
+ Next.js 16 app (Netlify free plan, Vercel, or any Node host)
  ├─ Pages (server-rendered) and JSON API routes
  ├─ Posting engine: turns every business document into double-entry journal lines in ONE database transaction
- ├─ AI layer (server only): Claude for understanding speech/text, reading bills, accounting chat
+ ├─ AI layer (server only, AI_PROVIDER): Gemini (free tier, default) or Claude for understanding speech/text, reading bills, accounting chat
  ├─ Google Sheets worker: outbox table → Sheets, with retry and duplicate protection
  └─ Exports: Excel (.xlsx), CSV, PDF
           │
@@ -96,7 +96,7 @@ If the shop is **not VAT registered**, VAT paid is added to the cost of stock/ex
 
 1. Employee taps the microphone and speaks (Malayalam, English, Manglish, Arabic or mixed).
 2. The phone's speech recogniser turns it into text (or the server's speech-to-text, if configured). The text is shown and can be corrected.
-3. **Understand** sends the text to Claude with today's date, the product list (with aliases), expense types and known parties. Claude returns structured JSON (enforced by a schema): type, date, party, payment, items, quantities, prices, confidence, and questions about anything unclear.
+3. **Understand** sends the text to the AI (Gemini or Claude) with today's date, the product list (with aliases), expense types and known parties. The AI returns structured JSON (enforced by a schema and validated again on the server): type, date, party, payment, items, quantities, prices, confidence, and questions about anything unclear.
 4. The server fills in maths it can do safely (e.g. "20 boxes for 100" → 5 per box), matches products, and marks anything missing.
 5. The confirm screen shows every field, editable, with warnings. **Nothing is saved until the employee taps Confirm.**
 6. The confirmed entry is saved on the phone immediately, then posted to the server, which writes the document, stock, journal, audit log and Sheets queue in one transaction.
@@ -105,7 +105,7 @@ Offline: the words are kept on the phone and understood when the connection retu
 
 ## Bill scanning flow
 
-Upload (camera, many photos, PDF, Excel, Word) → images compressed on the phone → files stored with SHA-256 → one OCR job per file → Claude reads supplier, TRN, invoice no., date, lines, VAT, discounts, total → products and supplier matched, duplicate invoice checked → employee reviews next to the bill image → confirm creates the purchase. Jobs run in the background (after upload, while the scan page is open, and from the cron worker).
+Upload (camera, many photos, PDF, Excel, Word) → images compressed on the phone → files stored with SHA-256 → one OCR job per file → the AI reads supplier, TRN, invoice no., date, lines, VAT, discounts, total → products and supplier matched, duplicate invoice checked → employee reviews next to the bill image → confirm creates the purchase. Jobs run in the background (after upload, while the scan page is open, and from the cron worker).
 
 ## AI chat (never invents figures)
 

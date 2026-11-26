@@ -12,14 +12,8 @@ export function claude(): Anthropic {
   return _client;
 }
 
-export const aiConfigured = () => !!process.env.ANTHROPIC_API_KEY;
-
-/** Model per feature. All default to Claude Opus 5.5; the owner can pick a cheaper model per feature via env. */
-export const MODELS = {
-  parse: process.env.AI_MODEL_PARSE || process.env.AI_MODEL || "claude-opus-5-5",
-  ocr: process.env.AI_MODEL_OCR || process.env.AI_MODEL || "claude-opus-5-5",
-  chat: process.env.AI_MODEL_CHAT || process.env.AI_MODEL || "claude-opus-5-5",
-};
+export { aiConfigured } from "./provider";
+export { CLAUDE_MODELS as MODELS } from "./provider";
 
 /** USD per million tokens: [input, output, cache read] */
 const PRICES: Record<string, [number, number, number]> = {
@@ -36,8 +30,17 @@ export const FALLBACK = {
 
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
 
+/**
+ * Gemini price per million tokens [input, output]. 0 by default because the free tier costs nothing;
+ * set GEMINI_PRICE_INPUT / GEMINI_PRICE_OUTPUT if you turn on Google billing so the budget cap counts it.
+ */
+function geminiPrice(): [number, number, number] {
+  const i = Number(process.env.GEMINI_PRICE_INPUT || 0), o = Number(process.env.GEMINI_PRICE_OUTPUT || 0);
+  return [i, o, i / 4];
+}
+
 export async function logUsage(feature: string, model: string, usage: Usage, userId: string | null) {
-  const p = PRICES[model] ?? PRICES["claude-opus-5-5"];
+  const p = model.startsWith("gemini") ? geminiPrice() : PRICES[model] ?? PRICES["claude-opus-5-5"];
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheWrite = usage.cache_creation_input_tokens ?? 0;
   const cost = (usage.input_tokens * p[0] + cacheWrite * p[0] * 1.25 + cacheRead * p[2] + usage.output_tokens * p[1]) / 1_000_000;

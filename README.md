@@ -17,6 +17,7 @@ Employees press the microphone, say the purchase, sale or expense in **Malayalam
 - **UAE VAT**: configurable rate, inclusive/exclusive prices, zero-rated/exempt products, tax invoice and credit note print
 - **Offline-first** installable phone app; owner/employee roles; AI cost tracking and monthly budget
 - Light and dark mode, mobile-first
+- **Runs on free plans**: Netlify + Neon + Gemini API free tier (Claude optional, paid). See [costs and free-tier limits](docs/COSTS.md)
 
 ## Docs
 
@@ -27,6 +28,6 @@ Employees press the microphone, say the purchase, sale or expense in **Malayalam
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · PostgreSQL (Neon) · Claude API · Google Sheets API · ExcelJS · jsPDF
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · PostgreSQL (Neon) · Google Gemini API (free tier) or Claude API · Google Sheets API · ExcelJS · jsPDF
 
 Note: VAT reports help prepare returns; they are not an official FTA submission. Check tax treatment with your tax agent.

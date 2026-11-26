@@ -1,6 +1,8 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
-import { claude, MODELS, FALLBACK, logUsage, assertBudget } from "./claude";
+import { claude, FALLBACK, logUsage, assertBudget } from "./claude";
+import { provider, CLAUDE_MODELS, GEMINI_MODELS } from "./provider";
+import { generate, type GContent, type GPart } from "./gemini";
 import * as R from "../reports";
 import { num } from "../db";
 import { addDays, isISODate, todayISO } from "../dates";
@@ -32,8 +34,8 @@ const TOOLS: Tool[] = [
     input_schema: { type: "object", properties: { ...range, by: { type: "string", enum: ["profit", "revenue", "qty"] }, limit: { type: "integer" } }, required: ["from", "to", "by"], additionalProperties: false } },
   { name: "trend", description: "Daily or monthly series of sales, purchases, expenses and profit.",
     input_schema: { type: "object", properties: { ...range, granularity: { type: "string", enum: ["day", "month"] } }, required: ["from", "to", "granularity"], additionalProperties: false } },
-  { name: "list_transactions", description: "List individual transactions with filters. type: purchase, sale, expense, receipt, payment, sale_return, purchase_return, stock_adjustment.",
-    input_schema: { type: "object", properties: { ...range, type: { type: ["string", "null"] }, search: { type: ["string", "null"] }, limit: { type: "integer" } }, required: ["from", "to"], additionalProperties: false } },
+  { name: "list_transactions", description: "List individual transactions with filters. Leave type and search out unless needed. type: purchase, sale, expense, receipt, payment, sale_return, purchase_return, stock_adjustment.",
+    input_schema: { type: "object", properties: { ...range, type: { type: "string" }, search: { type: "string" }, limit: { type: "integer" } }, required: ["from", "to"], additionalProperties: false } },
   { name: "vat_summary", description: "VAT on sales and purchases for a period, for preparing a VAT return (working figures, not an official FTA filing).",
     input_schema: { type: "object", properties: { ...range }, required: ["from", "to"], additionalProperties: false } },
   { name: "download_link", description: "Make a download link for a report file the owner can open in Excel or print.",
@@ -80,7 +82,7 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
     case "top_products": return R.topProducts(from, to, (input.by as "profit") ?? "profit", Math.min(Number(input.limit ?? 10), 50));
     case "trend": return input.granularity === "month" ? R.monthlySeries(from, to) : R.dailySeries(from, to);
     case "list_transactions": {
-      const rows = await R.listTransactions({ from, to, type: (input.type as string) ?? null, q: (input.search as string) ?? null, limit: Math.min(Number(input.limit ?? 30), 100) });
+      const rows = await R.listTransactions({ from, to, type: (input.type as string) || null, q: (input.search as string) || null, limit: Math.min(Number(input.limit ?? 30), 100) });
       return rows.map((r) => ({ ref: r.ref_no, date: r.txn_date, type: r.type, party: r.party, items: r.items, total: num(r.total), payment: r.payment_method, by: r.created_by }));
     }
     case "vat_summary": return R.vatReport(from, to);
@@ -112,11 +114,12 @@ export type ChatTurn = { role: "user" | "assistant"; content: string };
 export async function chat(history: ChatTurn[], userId: string) {
   if (!history.length || history[history.length - 1].role !== "user") throw new HttpError(400, "Ask a question");
   await assertBudget();
+  if (provider() === "gemini") return chatGemini(history, userId);
   const today = todayISO();
   const messages: Anthropic.Beta.BetaMessageParam[] = history.slice(-12).map((h) => ({ role: h.role, content: h.content.slice(0, 4000) }));
   // the date goes in a final system message so the cached system prompt stays identical across days
   messages.push({ role: "system", content: `Today is ${today} (yesterday ${addDays(today, -1)}), time zone Asia/Dubai.` } as unknown as Anthropic.Beta.BetaMessageParam);
-  const model = MODELS.chat;
+  const model = CLAUDE_MODELS.chat;
   let cost = 0;
   const used: string[] = [];
 
@@ -148,6 +151,39 @@ export async function chat(history: ChatTurn[], userId: string) {
       }
     }));
     messages.push({ role: "user", content: results });
+  }
+  return { reply: "That question needed too many steps. Please ask in a simpler way.", cost_usd: cost, tools: used };
+}
+
+async function runCall(name: string, args: Record<string, unknown>) {
+  try { return { result: await runTool(name, args) }; } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+}
+
+async function chatGemini(history: ChatTurn[], userId: string) {
+  const today = todayISO();
+  const system = `${SYSTEM}\n\nToday is ${today} (yesterday ${addDays(today, -1)}), time zone Asia/Dubai.`;
+  const contents: GContent[] = history.slice(-12).map((h) => ({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: h.content.slice(0, 4000) }] }));
+  const tools = TOOLS.map((t) => ({ name: t.name, description: t.description ?? "", parametersJsonSchema: t.input_schema as unknown as Record<string, unknown> }));
+  let cost = 0;
+  const used: string[] = [];
+
+  for (let step = 0; step < 8; step++) {
+    const r = await generate({ feature: "chat", model: GEMINI_MODELS.chat, userId, system, contents, tools });
+    cost += r.cost;
+    // keep the model's parts exactly as returned (they can carry thought signatures Gemini needs back)
+    contents.push(r.content);
+    const calls = r.content.parts.filter((p): p is Extract<GPart, { functionCall: unknown }> => "functionCall" in p && !!p.functionCall);
+    if (calls.length === 0) {
+      if (r.finishReason === "SAFETY" || r.finishReason === "PROHIBITED_CONTENT") return { reply: "Sorry, I can't answer that one.", cost_usd: cost, tools: used };
+      return { reply: r.text || "I could not find an answer.", cost_usd: cost, tools: used };
+    }
+    const responses: GPart[] = await Promise.all(calls.map(async ({ functionCall: c }) => {
+      used.push(c.name);
+      const out = await runCall(c.name, c.args ?? {});
+      // round-trip through JSON so dates/numerics become plain values
+      return { functionResponse: { name: c.name, ...(c.id ? { id: c.id } : {}), response: JSON.parse(JSON.stringify(out)) } };
+    }));
+    contents.push({ role: "user", parts: responses });
   }
   return { reply: "That question needed too many steps. Please ask in a simpler way.", cost_usd: cost, tools: used };
 }

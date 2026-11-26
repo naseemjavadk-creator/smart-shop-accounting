@@ -4,10 +4,13 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import mammoth from "mammoth";
-import { claude, MODELS, FALLBACK, logUsage, assertBudget, refusalText } from "./claude";
+import { claude, FALLBACK, logUsage, assertBudget, refusalText } from "./claude";
+import { provider, CLAUDE_MODELS, GEMINI_MODELS } from "./provider";
+import { generateJSON, type GPart } from "./gemini";
 import { q, q1, num } from "../db";
 import { findProducts } from "../reports";
 import { todayISO } from "../dates";
+import { HttpError } from "../auth";
 
 const BillSchema = z.object({
   supplier_name: z.string().nullable(),
@@ -40,15 +43,16 @@ Copy what is written; never invent numbers. If a value cannot be read, use null 
 Dates are day/month/year; 2-digit years are 20xx. Amounts are AED unless stated.
 List every product line. If the bill has only a total and no lines, return one line with the total.`;
 
-export async function fileToContent(data: Buffer, mime: string, filename: string): Promise<Anthropic.Beta.BetaContentBlockParam[]> {
+/** A bill file turned into something any AI provider can read: the image/PDF itself, or extracted text. */
+type DocPart = { kind: "image" | "pdf"; mime: string; data: Buffer } | { kind: "text"; text: string };
+
+export async function fileToContent(data: Buffer, mime: string, filename: string): Promise<DocPart[]> {
   const lower = filename.toLowerCase();
   if (mime.startsWith("image/")) {
-    const media = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime) ? mime : "image/jpeg") as "image/jpeg";
-    return [{ type: "image", source: { type: "base64", media_type: media, data: data.toString("base64") } }];
+    const ok = ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime) ? mime : "image/jpeg";
+    return [{ kind: "image", mime: ok, data }];
   }
-  if (mime === "application/pdf" || lower.endsWith(".pdf")) {
-    return [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: data.toString("base64") } }];
-  }
+  if (mime === "application/pdf" || lower.endsWith(".pdf")) return [{ kind: "pdf", mime: "application/pdf", data }];
   if (lower.endsWith(".xlsx") || mime.includes("spreadsheetml")) {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(data as unknown as ArrayBuffer);
@@ -62,29 +66,46 @@ export async function fileToContent(data: Buffer, mime: string, filename: string
         parts.push(vals.join(" | "));
       });
     });
-    return [{ type: "text", text: parts.join("\n").slice(0, 200_000) }];
+    return [{ kind: "text", text: parts.join("\n").slice(0, 200_000) }];
   }
   if (lower.endsWith(".csv") || mime === "text/csv" || mime === "text/plain") {
-    return [{ type: "text", text: data.toString("utf8").slice(0, 200_000) }];
+    return [{ kind: "text", text: data.toString("utf8").slice(0, 200_000) }];
   }
   if (lower.endsWith(".docx") || mime.includes("wordprocessingml")) {
     const r = await mammoth.extractRawText({ buffer: data });
-    return [{ type: "text", text: r.value.slice(0, 200_000) }];
+    return [{ kind: "text", text: r.value.slice(0, 200_000) }];
   }
   throw new Error("This file type is not supported. Use a photo, PDF, Excel (.xlsx), CSV or Word (.docx).");
 }
 
-export async function readBill(data: Buffer, mime: string, filename: string, userId: string | null) {
+function toClaude(parts: DocPart[]): Anthropic.Beta.BetaContentBlockParam[] {
+  return parts.map((p): Anthropic.Beta.BetaContentBlockParam =>
+    p.kind === "text" ? { type: "text", text: p.text }
+    : p.kind === "pdf" ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: p.data.toString("base64") } }
+    : { type: "image", source: { type: "base64", media_type: p.mime as "image/jpeg", data: p.data.toString("base64") } });
+}
+
+function toGemini(parts: DocPart[]): GPart[] {
+  return parts.map((p): GPart => (p.kind === "text" ? { text: p.text } : { inlineData: { mimeType: p.mime, data: p.data.toString("base64") } }));
+}
+
+export async function readBill(data: Buffer, mime: string, filename: string, userId: string | null): Promise<{ bill: Bill; cost: number }> {
   await assertBudget();
   const content = await fileToContent(data, mime, filename);
-  const model = MODELS.ocr;
+  if (provider() === "gemini") {
+    if (data.length > 18 * 1024 * 1024) throw new Error("File is too large for the AI (max about 18 MB). Take a smaller photo or split the PDF.");
+    const r = await generateJSON({ feature: "ocr", model: GEMINI_MODELS.ocr, userId, system: SYSTEM,
+      parts: [...toGemini(content), { text: "Read this bill." }], schema: BillSchema });
+    return { bill: r.data, cost: r.cost };
+  }
+  const model = CLAUDE_MODELS.ocr;
   const msg = await claude().beta.messages.parse({
     model,
     max_tokens: 16000,
     ...FALLBACK,
     system: SYSTEM,
     output_config: { effort: "low", format: betaZodOutputFormat(BillSchema) },
-    messages: [{ role: "user", content: [...content, { type: "text", text: "Read this bill." }] }],
+    messages: [{ role: "user", content: [...toClaude(content), { type: "text", text: "Read this bill." }] }],
   });
   const cost = await logUsage("ocr", msg.model ?? model, msg.usage, userId);
   const refused = refusalText(msg);
@@ -140,7 +161,7 @@ export async function processOcrJob(jobId: string) {
   const job = await q1<{ id: string; file_id: string; created_by: string | null }>(
     `update ocr_jobs set status = 'processing', attempts = attempts + 1, updated_at = now()
       where id = $1 and (status = 'queued' or (status = 'processing' and updated_at < now() - interval '5 minutes')
-                         or (status = 'failed' and attempts < 3))
+                         or (status = 'failed' and attempts < 3 and updated_at < now() - interval '2 minutes'))
       returning id, file_id, created_by`, [jobId]);
   if (!job) return null;
   try {
@@ -154,14 +175,17 @@ export async function processOcrJob(jobId: string) {
     return { status, draft };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await q(`update ocr_jobs set status = 'failed', error = $2, updated_at = now() where id = $1`, [jobId, msg.slice(0, 1000)]);
+    // free-tier limit or busy service: not the bill's fault, so it does not use up one of the 3 tries
+    const transient = e instanceof HttpError && (e.status === 429 || e.status === 502);
+    await q(`update ocr_jobs set status = 'failed', error = $2, updated_at = now(),
+               attempts = case when $3 then greatest(attempts - 1, 0) else attempts end where id = $1`, [jobId, msg.slice(0, 1000), transient]);
     return { status: "failed", error: msg };
   }
 }
 
 export async function nextQueuedJobs(limit = 3) {
   return q<{ id: string }>(
-    `select id from ocr_jobs where status = 'queued' or (status = 'failed' and attempts < 3)
+    `select id from ocr_jobs where status = 'queued' or (status = 'failed' and attempts < 3 and updated_at < now() - interval '2 minutes')
        or (status = 'processing' and updated_at < now() - interval '5 minutes') order by created_at limit $1`, [limit]);
 }
 

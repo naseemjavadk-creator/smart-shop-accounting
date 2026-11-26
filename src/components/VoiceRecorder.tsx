@@ -29,12 +29,16 @@ export function VoiceRecorder({ onText, serverStt, disabled }: { onText: (t: str
   const mediaRef = useRef<MediaRecorder | null>(null);
   const finalText = useRef("");
 
-  useEffect(() => { const l = localStorage.getItem("voice-lang"); if (l) setLang(l); }, []);
+  const [engine, setEngine] = useState<"phone" | "server">("phone");
+  useEffect(() => {
+    const l = localStorage.getItem("voice-lang"); if (l) setLang(l);
+    if (localStorage.getItem("voice-engine") === "server") setEngine("server");
+  }, []);
 
   const SRClass = typeof window !== "undefined"
     ? ((window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }).SpeechRecognition
       ?? (window as unknown as { webkitSpeechRecognition?: new () => SR }).webkitSpeechRecognition) : undefined;
-  const useServer = serverStt && (!SRClass || localStorage.getItem("voice-engine") === "server");
+  const useServer = serverStt && (!SRClass || engine === "server");
 
   async function start() {
     setErr("");
@@ -107,6 +111,17 @@ export function VoiceRecorder({ onText, serverStt, disabled }: { onText: (t: str
         {busy ? <Loader2 size={52} className="animate-spin" /> : listening ? <Square size={48} className="relative" /> : <Mic size={60} />}
       </button>
       <div className="text-sm text-slate-500">{busy ? "Converting speech…" : listening ? "Listening… tap to stop" : "Tap and speak the purchase, sale or expense"}</div>
+      {serverStt && SRClass && (
+        <div className="flex items-center gap-1 text-xs text-slate-500">
+          <span>Voice engine:</span>
+          {(["phone", "server"] as const).map((e) => (
+            <button key={e} type="button" onClick={() => { setEngine(e); localStorage.setItem("voice-engine", e); }}
+              className={clsx("chip px-2 py-0.5", engine === e ? "bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900" : "bg-slate-100 dark:bg-slate-800")}>
+              {e === "phone" ? "Phone" : "Gemini (better Malayalam)"}
+            </button>
+          ))}
+        </div>
+      )}
       {err && <div className="text-sm text-rose-600">{err}</div>}
     </div>
   );

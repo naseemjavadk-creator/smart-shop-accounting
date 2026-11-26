@@ -4,12 +4,12 @@ import { HttpError } from "../auth";
 
 /**
  * Optional server speech-to-text for phones where the browser's built-in recogniser is weak (e.g. Malayalam on iPhone).
- * Uses Google Gemini, which has a free tier, because Claude does not take audio input.
- * Enabled only when GEMINI_API_KEY is set.
+ * Uses Google Gemini (free tier available) because Claude does not take audio input.
+ * Enabled whenever GEMINI_API_KEY is set, whichever AI provider is chosen for the other features.
  */
 export const sttConfigured = () => !!process.env.GEMINI_API_KEY;
 
-const MODEL = process.env.GEMINI_STT_MODEL || "gemini-flash-latest";
+const MODEL = process.env.GEMINI_STT_MODEL || process.env.GEMINI_MODEL || "gemini-flash-latest";
 
 export async function transcribe(audio: Buffer, mime: string, userId: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
@@ -28,6 +28,7 @@ export async function transcribe(audio: Buffer, mime: string, userId: string): P
       generationConfig: { temperature: 0 },
     }),
   });
+  if (res.status === 429) throw new HttpError(429, "The free speech-to-text limit is used up for now. Wait a minute, switch the voice engine to Phone, or type it.");
   if (!res.ok) throw new HttpError(502, `Speech-to-text failed (${res.status})`);
   const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } };
   const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim() ?? "";
