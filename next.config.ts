@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  serverExternalPackages: ["pg", "exceljs", "jspdf", "mammoth", "bcryptjs"],
   turbopack: {
     rules: {
       "*.css": {
