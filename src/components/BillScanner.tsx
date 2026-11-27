@@ -121,7 +121,7 @@ export function BillScanner() {
       {ready.length > 0 && (
         <div className="card sticky top-16 z-10 mb-4 flex flex-wrap items-center gap-3 border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-900/20">
           <div className="text-sm">
-            <b>{ready.length} bill(s) ready</b> · total AED {readyTotal.toFixed(2)}
+            <b>{ready.length} bill(s) ready</b> · grand total AED {readyTotal.toFixed(2)}
             {toCheck > 0 && <div className="text-xs text-amber-700">{toCheck} other bill(s) need a check first and will not be saved.</div>}
             <div className="text-xs text-slate-500">Tap any bill below to open and fix it before saving.</div>
           </div>
@@ -139,7 +139,7 @@ export function BillScanner() {
           <Link key={j.id} href={`/scan/${j.id}`} className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-sm last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/40">
             <div className="min-w-0">
               <div className="truncate font-medium">{j.supplier ?? j.filename}</div>
-              <div className="text-xs text-slate-500">{j.invoice_no ? `Inv ${j.invoice_no} · ` : ""}{j.total ? `AED ${Number(j.total).toFixed(2)} · ` : ""}{new Date(j.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai" })}{j.ref_no ? ` · ${j.ref_no}` : ""}</div>
+              <div className="text-xs text-slate-500">{j.invoice_no ? `Inv ${j.invoice_no} · ` : ""}{j.total ? `Grand total AED ${Number(j.total).toFixed(2)} · ` : ""}{new Date(j.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai" })}{j.ref_no ? ` · ${j.ref_no}` : ""}</div>
               {j.error && <div className="text-xs text-rose-600">{j.error}</div>}
               {doubt(j, cat) && <div className="flex items-center gap-1 text-xs text-amber-700"><AlertTriangle size={12} /> {doubt(j, cat)}</div>}
             </div>

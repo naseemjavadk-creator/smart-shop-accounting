@@ -31,7 +31,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       <Card className="overflow-x-auto">
         {rows.length === 0 ? <Empty>No transactions in this period.</Empty> : (
           <table className="table">
-            <thead><tr><th>Date</th><th>Ref</th><th>Type</th><th>Details</th><th>Party</th><th>Pay</th><th className="num">VAT</th><th className="num">Total</th><th>By</th><th /></tr></thead>
+            <thead><tr><th>Date</th><th>Ref</th><th>Type</th><th>Details</th><th>Party</th><th>Pay</th><th className="num">VAT</th><th className="num">Grand total</th><th>By</th><th /></tr></thead>
             <tbody>
               {rows.map((t) => (
                 <tr key={t.id} className={t.status === "void" ? "line-through opacity-50" : ""}>

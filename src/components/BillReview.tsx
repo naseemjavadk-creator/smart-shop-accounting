@@ -45,7 +45,7 @@ export function BillReview({ id }: { id: string }) {
         {d?.duplicate && <div className="card flex items-start gap-2 border-rose-300 bg-rose-50 p-4 text-sm text-rose-800 dark:bg-rose-900/20 dark:text-rose-200"><AlertTriangle size={18} /> This supplier invoice ({d.invoice_no}) is already saved as <Link className="underline" href={`/transactions/${d.duplicate.id}`}>{d.duplicate.ref_no}</Link>. Saving again will be blocked.</div>}
         {d && d.document_kind !== "purchase_bill" && <div className="card p-3 text-sm text-amber-700">This looks like a {d.document_kind.replace("_", " ")}, not a supplier bill. Check before saving.</div>}
         {d?.notes && <div className="card p-3 text-sm text-amber-700">AI note: {d.notes}</div>}
-        {d && d.total != null && <div className="text-sm text-slate-500">Bill total read by AI: <b>AED {Number(d.total).toFixed(2)}</b>{d.vat_total != null && ` · VAT ${Number(d.vat_total).toFixed(2)}`} · confidence {d.confidence}. Make sure the total below matches.</div>}
+        {d && d.total != null && <div className="text-sm text-slate-500">Grand total read by AI: <b>AED {Number(d.total).toFixed(2)}</b>{d.vat_total != null && ` · VAT ${Number(d.vat_total).toFixed(2)}`} · confidence {d.confidence}. Make sure the grand total below matches.</div>}
         {draft && job.status !== "saved" && (
           <div className="card p-4">
             <TxnEditor initial={draft} cat={cat} fixedType saveLabel="Confirm purchase" onSaved={() => setTimeout(() => router.push("/scan"), 600)} />

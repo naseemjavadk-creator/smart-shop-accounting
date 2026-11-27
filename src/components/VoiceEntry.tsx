@@ -168,7 +168,7 @@ export function ConfirmCards({ cards, setCards, cat }: { cards: Card[]; setCards
       {open.length > 1 && (
         <div className="card sticky top-16 z-20 flex flex-wrap items-center justify-between gap-2 border-brand-300 bg-brand-50 p-3 dark:bg-brand-600/15">
           <div className="text-sm">
-            <b>{open.length} entries</b> · AED {open.reduce((s, c) => s + draftTotal(edits[c.id] ?? c.draft, cat), 0).toFixed(2)}
+            <b>{open.length} entries</b> · grand total AED {open.reduce((s, c) => s + draftTotal(edits[c.id] ?? c.draft, cat), 0).toFixed(2)}
             <div className="text-xs text-slate-500">Look through them below, fix anything wrong, then save all at once.</div>
           </div>
           <button className="btn-primary" disabled={bulk.busy} onClick={saveAll}>

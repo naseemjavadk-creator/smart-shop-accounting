@@ -45,7 +45,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         {party?.trn && <div>TRN: {party.trn}</div>}
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="border-y bg-slate-50 text-left"><th className="p-2">#</th><th className="p-2">Description</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Unit price</th><th className="p-2 text-right">Taxable amount</th><th className="p-2 text-right">VAT %</th><th className="p-2 text-right">VAT</th><th className="p-2 text-right">Total (AED)</th></tr></thead>
+        <thead><tr className="border-y bg-slate-50 text-left"><th className="p-2">#</th><th className="p-2">Description</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Unit price</th><th className="p-2 text-right">Gross amount</th><th className="p-2 text-right">VAT %</th><th className="p-2 text-right">VAT</th><th className="p-2 text-right">Grand total (AED)</th></tr></thead>
         <tbody>{t.lines.map((l) => (
           <tr key={String(l.id)} className="border-b">
             <td className="p-2">{l.line_no}</td><td className="p-2">{l.description}</td>
@@ -57,9 +57,9 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         ))}</tbody>
       </table>
       <div className="ml-auto mt-4 w-64 space-y-1 text-sm">
-        <div className="flex justify-between"><span>Total excl. VAT</span><span>{num(t.subtotal).toFixed(2)}</span></div>
+        <div className="flex justify-between"><span>Gross amount</span><span>{num(t.subtotal).toFixed(2)}</span></div>
         <div className="flex justify-between"><span>VAT</span><span>{num(t.vat_amount).toFixed(2)}</span></div>
-        <div className="flex justify-between border-t pt-1 text-base font-bold"><span>Total AED</span><span>{num(t.total).toFixed(2)}</span></div>
+        <div className="flex justify-between border-t pt-1 text-base font-bold"><span>Grand total (AED)</span><span>{num(t.total).toFixed(2)}</span></div>
       </div>
       <div className="mt-10 text-center text-xs text-slate-400">Thank you for your business</div>
     </div>

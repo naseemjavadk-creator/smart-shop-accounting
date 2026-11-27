@@ -378,15 +378,19 @@ export function TxnEditor({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
         <div className="text-sm">
           {d.type === "expense" ? (
-            <div className="text-lg font-bold">Total AED {fmt(d.amount ?? 0)}</div>
+            <div className="text-lg font-bold">Grand total AED {fmt(d.amount ?? 0)}</div>
           ) : amountOnly ? (
             <div className="text-lg font-bold">AED {fmt(d.amount ?? 0)}</div>
           ) : d.type === "stock_adjustment" ? (
             <div className="text-slate-500">Stock value is calculated at average cost</div>
           ) : (
             <>
-              <div className="text-slate-500">Net {fmt(totals.net)} · VAT {fmt(totals.vat)}</div>
-              <div className="text-xl font-bold">Total AED {fmt(totals.total)}</div>
+              <div className="grid min-w-56 grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
+                <span className="text-slate-500">Gross amount</span><span className="text-right tabular-nums">{fmt(totals.net)}</span>
+                <span className="text-slate-500">VAT</span><span className="text-right tabular-nums">{fmt(totals.vat)}</span>
+                <span className="border-t border-slate-200 pt-1 text-lg font-bold dark:border-slate-700">Grand total</span>
+                <span className="border-t border-slate-200 pt-1 text-right text-lg font-bold tabular-nums dark:border-slate-700">AED {fmt(totals.total)}</span>
+              </div>
             </>
           )}
         </div>

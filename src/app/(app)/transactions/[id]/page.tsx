@@ -31,7 +31,7 @@ export default async function TxnPage({ params }: { params: Promise<{ id: string
         <Card className="p-3"><div className="label">Type</div><TypeChip type={type} label={TYPE_LABEL[type]} /></Card>
         <Card className="p-3"><div className="label">{t.party_kind === "supplier" ? "Supplier" : "Customer"}</div>{t.party_name ?? "—"}</Card>
         <Card className="p-3"><div className="label">Payment</div><span className="capitalize">{String(t.payment_method)}</span> · paid {aed(num(t.amount_paid))}</Card>
-        <Card className="p-3"><div className="label">Total</div><b>{aed(num(t.total))}</b> <span className="text-xs text-slate-500">VAT {aed(num(t.vat_amount))}</span></Card>
+        <Card className="p-3"><div className="label">Grand total</div><b>{aed(num(t.total))}</b> <span className="text-xs text-slate-500">Gross {aed(num(t.total) - num(t.vat_amount))} · VAT {aed(num(t.vat_amount))}</span></Card>
       </div>
       {(t.invoice_no || t.notes || t.expense_account || t.raw_input) && (
         <Card className="space-y-1 p-3 text-sm">
@@ -45,7 +45,7 @@ export default async function TxnPage({ params }: { params: Promise<{ id: string
       {t.lines.length > 0 && (
         <Card className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>#</th><th>Item</th><th className="num">Qty</th><th className="num">Price</th><th className="num">Net</th><th className="num">VAT</th><th className="num">Total</th>{type === "sale" && <th className="num">Cost (COGS)</th>}</tr></thead>
+            <thead><tr><th>#</th><th>Item</th><th className="num">Qty</th><th className="num">Price</th><th className="num">Gross amount</th><th className="num">VAT</th><th className="num">Grand total</th>{type === "sale" && <th className="num">Cost (COGS)</th>}</tr></thead>
             <tbody>{t.lines.map((l) => (
               <tr key={String(l.id)}>
                 <td>{l.line_no}</td>
