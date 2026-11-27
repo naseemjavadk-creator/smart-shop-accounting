@@ -9,6 +9,7 @@ import { aiReady, geminiKey, modelsInUse } from "@/lib/ai/provider";
 import { sttConfigured } from "@/lib/ai/stt";
 import { PageHeader, Card } from "@/components/ui";
 import { SettingsForms, UsersAdmin } from "@/components/SettingsForms";
+import { ResetData } from "@/components/ResetData";
 
 export default async function SettingsPage() {
   const user = await getUser();
@@ -41,6 +42,7 @@ export default async function SettingsPage() {
           ))}</tbody>
         </table>
       </Card>
+      <ResetData />
     </div>
   );
 }
