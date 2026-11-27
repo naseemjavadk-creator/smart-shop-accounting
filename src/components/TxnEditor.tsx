@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { Plus, Trash2, Check, AlertTriangle, Sparkles } from "lucide-react";
 import type { Catalog, Draft, DraftLine, TxnKind, CatalogProduct } from "@/lib/offline/types";
@@ -108,12 +108,65 @@ function ProductCell({ line, cat, type, onChange }: { line: DraftLine; cat: Cata
 
 export type SavedInfo = { key: string; summary: string; total: number };
 
+const LINE_TYPES = ["sale", "purchase", "sale_return", "purchase_return", "stock_adjustment"];
+const AMOUNT_TYPES = ["receipt", "payment", "transfer"];
+
+/** What is still missing in a draft before it can be saved (null = ready). Used by the form and by "Save all". */
+export function checkDraft(d: Draft, cat: Catalog | null): string | null {
+  const totals = draftTotals(d, cat);
+  const pk = partyKind(d.type);
+  const hasLines = LINE_TYPES.includes(d.type);
+  const amountOnly = AMOUNT_TYPES.includes(d.type);
+  if (!d.txn_date) return "Choose the date";
+  if (hasLines) {
+    if (!d.lines.length) return "Add at least one item";
+    for (const l of d.lines) {
+      if (!l.product_id && !(l.new_product_name || "").trim()) return "Every line needs a product";
+      if (!(l.qty > 0)) return "Quantity must be more than 0";
+      if (d.type !== "stock_adjustment" && !(l.unit_price >= 0)) return "Check the prices";
+    }
+    if (d.type !== "stock_adjustment" && totals.total <= 0) return "Total is 0. Enter the price.";
+  }
+  if (d.type === "expense" && !(d.amount && d.amount > 0)) return "Enter the amount";
+  if (amountOnly && !(d.amount && d.amount > 0)) return "Enter the amount";
+  if ((d.type === "receipt" || d.type === "payment") && !d.party_id && !d.party_name.trim()) return pk === "customer" ? "Choose the customer" : "Choose the supplier";
+  if (d.payment_method === "credit" && !d.party_id && !d.party_name.trim()) return pk === "customer" ? "Credit sale needs the customer name" : "Credit purchase needs the supplier name";
+  return null;
+}
+
+/** Total shown to the user for a draft. */
+export function draftTotal(d: Draft, cat: Catalog | null) {
+  return d.type === "expense" || AMOUNT_TYPES.includes(d.type) ? (d.amount ?? 0) : draftTotals(d, cat).total;
+}
+
+/** Save a checked draft on this phone (synced to the cloud as soon as possible). */
+export async function saveDraft(d: Draft, cat: Catalog | null): Promise<SavedInfo> {
+  // expenses: the amount said is what was paid; VAT only when the bill shows VAT
+  const draft: Draft = d.type === "expense"
+    ? { ...d, prices_include_vat: true, lines: [{ ...emptyLine(), description: d.notes || cat?.expenseAccounts.find((a) => a.id === d.expense_account_id)?.name || "Expense",
+        qty: 1, unit_price: d.amount ?? 0, unit: "", vat_category: d.prices_include_vat === true ? "standard" : "exempt" }] }
+    : d;
+  const payload = draftToPayload(draft);
+  const what = d.type === "expense"
+    ? `${cat?.expenseAccounts.find((a) => a.id === d.expense_account_id)?.name ?? "Expense"}${d.notes ? ": " + d.notes : ""}`
+    : AMOUNT_TYPES.includes(d.type) ? `${KIND_LABEL[d.type]}${d.party_name ? " · " + d.party_name : ""}`
+    : d.lines.map((l) => `${l.description || l.new_product_name} × ${l.qty}`).join(", ");
+  const total = draftTotal(d, cat);
+  const item = await saveEntry(payload, `${KIND_LABEL[d.type]}: ${what}`, total);
+  return { key: item.key, summary: item.summary, total };
+}
+
 export function TxnEditor({
-  initial, cat, fixedType, onSaved, onCancel, compact, saveLabel,
+  initial, cat, fixedType, onSaved, onCancel, onChange, compact, saveLabel,
 }: {
-  initial: Draft; cat: Catalog | null; fixedType?: boolean; onSaved?: (s: SavedInfo) => void; onCancel?: () => void; compact?: boolean; saveLabel?: string;
+  initial: Draft; cat: Catalog | null; fixedType?: boolean; onSaved?: (s: SavedInfo) => void; onCancel?: () => void;
+  /** told about every edit, so a list can "save all" with the edited values */
+  onChange?: (d: Draft) => void; compact?: boolean; saveLabel?: string;
 }) {
   const [d, setD] = useState<Draft>(initial);
+  const changeRef = useRef(onChange);
+  useEffect(() => { changeRef.current = onChange; });
+  useEffect(() => { changeRef.current?.(d); }, [d]);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
@@ -125,42 +178,13 @@ export function TxnEditor({
   const amountOnly = ["receipt", "payment", "transfer"].includes(d.type);
   const owner = cat?.user.role === "owner";
 
-  function validate(): string | null {
-    if (!d.txn_date) return "Choose the date";
-    if (hasLines) {
-      if (!d.lines.length) return "Add at least one item";
-      for (const l of d.lines) {
-        if (!l.product_id && !(l.new_product_name || "").trim()) return "Every line needs a product";
-        if (!(l.qty > 0)) return "Quantity must be more than 0";
-        if (d.type !== "stock_adjustment" && !(l.unit_price >= 0)) return "Check the prices";
-      }
-      if (d.type !== "stock_adjustment" && totals.total <= 0) return "Total is 0. Enter the price.";
-    }
-    if (d.type === "expense" && !(d.amount && d.amount > 0)) return "Enter the amount";
-    if (amountOnly && !(d.amount && d.amount > 0)) return "Enter the amount";
-    if ((d.type === "receipt" || d.type === "payment") && !d.party_id && !d.party_name.trim()) return pk === "customer" ? "Choose the customer" : "Choose the supplier";
-    if (d.payment_method === "credit" && !d.party_id && !d.party_name.trim()) return pk === "customer" ? "Credit sale needs the customer name" : "Credit purchase needs the supplier name";
-    return null;
-  }
-
   async function save() {
-    const v = validate();
+    const v = checkDraft(d, cat);
     if (v) { setErr(v); return; }
     setErr(""); setSaving(true);
-    // expenses: the amount said is what was paid; VAT only when the bill shows VAT
-    const draft: Draft = d.type === "expense"
-      ? { ...d, prices_include_vat: true, lines: [{ ...emptyLine(), description: d.notes || cat?.expenseAccounts.find((a) => a.id === d.expense_account_id)?.name || "Expense",
-          qty: 1, unit_price: d.amount ?? 0, unit: "", vat_category: d.prices_include_vat === true ? "standard" : "exempt" }] }
-      : d;
-    const payload = draftToPayload(draft);
-    const what = d.type === "expense"
-      ? `${cat?.expenseAccounts.find((a) => a.id === d.expense_account_id)?.name ?? "Expense"}${d.notes ? ": " + d.notes : ""}`
-      : amountOnly ? `${KIND_LABEL[d.type]}${d.party_name ? " · " + d.party_name : ""}`
-      : d.lines.map((l) => `${l.description || l.new_product_name} × ${l.qty}`).join(", ");
-    const total = d.type === "expense" ? (d.amount ?? 0) : amountOnly ? (d.amount ?? 0) : totals.total;
-    const item = await saveEntry(payload, `${KIND_LABEL[d.type]}: ${what}`, total);
+    const info = await saveDraft(d, cat);
     setSaving(false);
-    onSaved?.({ key: item.key, summary: item.summary, total });
+    onSaved?.(info);
   }
 
   const partyField = pk && (

@@ -3,17 +3,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { TxnEditor, emptyDraft } from "./TxnEditor";
+import { TxnEditor } from "./TxnEditor";
+import { billToEntry, type BillDraft } from "./billDraft";
 import { useCatalog } from "./useCatalog";
-import { uuid } from "@/lib/offline/idb";
 import type { Draft } from "@/lib/offline/types";
 
-type BillDraft = {
-  supplier_id: string | null; supplier_name: string | null; invoice_no: string | null; date: string; prices_include_vat: boolean;
-  vat_total: number | null; total: number | null; payment_method: Draft["payment_method"];
-  items: { description: string; qty: number; unit: string; unit_price: number; discount: number; product_id: string | null; product_name: string | null }[];
-  duplicate: { id: string; ref_no: string } | null; document_kind: string; confidence: string; notes: string | null;
-};
 type Job = { id: string; status: string; error: string | null; file_id: string; filename: string; mime: string; txn_id: string | null; result: { draft: BillDraft } | null };
 
 export function BillReview({ id }: { id: string }) {
@@ -33,14 +27,7 @@ export function BillReview({ id }: { id: string }) {
 
   if (!job) return <div className="py-10 text-center text-slate-500"><Loader2 className="mx-auto animate-spin" /></div>;
   const d = job.result?.draft;
-  const draft: Draft | null = d ? {
-    ...emptyDraft("purchase"),
-    txn_date: d.date, party_id: d.supplier_id, party_name: d.supplier_name ?? "", invoice_no: d.invoice_no ?? "",
-    payment_method: d.payment_method, prices_include_vat: d.prices_include_vat, vat_override: d.vat_total,
-    source: "ocr", file_id: job.file_id, ocr_job_id: job.id, raw_input: null,
-    lines: d.items.map((i) => ({ key: uuid(), product_id: i.product_id, new_product_name: i.product_id ? null : i.description,
-      is_service: false, description: i.product_name ?? i.description, qty: i.qty, unit: i.unit, unit_price: i.unit_price, discount: i.discount })),
-  } : null;
+  const draft: Draft | null = d ? billToEntry(d, job) : null;
   const fileUrl = `/api/files/${job.file_id}`;
 
   return (

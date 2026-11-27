@@ -53,15 +53,64 @@ export async function currentCompanyId(): Promise<string | null> {
   return sessionCompanyId();
 }
 
-async function begin(c: PoolClient) {
+async function contextSql() {
   const s = scope.getStore();
   const company = s ? s.companyId : await sessionCompanyId();
   const id = company && UUID.test(company) ? company : "";
-  // values are a validated UUID / fixed words, so inlining them is safe; one round trip for begin + context
-  await c.query(`begin; select set_config('app.company_id', '${id}', true), set_config('app.bypass', '${s?.system ? "on" : "off"}', true)`);
+  // values are a validated UUID / fixed words, so inlining them is safe
+  return `select set_config('app.company_id', '${id}', true), set_config('app.bypass', '${s?.system ? "on" : "off"}', true)`;
+}
+
+async function begin(c: PoolClient) {
+  await c.query(`begin; ${await contextSql()}`); // one round trip for begin + context
 }
 
 const isClient = (db: Db | undefined): db is PoolClient => !!db && !(db instanceof Pool);
+
+/*
+ * Speed: a stand-alone query is sent as ONE message — "set the company; run the query" — instead of
+ * begin / query / commit (three round trips). PostgreSQL runs a multi-statement message as one implicit
+ * transaction, so the transaction-local company setting applies to the query and is gone afterwards.
+ * Parameters are turned into quoted literals exactly as the driver would send them (untyped text), so
+ * PostgreSQL infers the same types. Queries with binary (Buffer) parameters use the normal path.
+ */
+function literal(v: unknown): string {
+  if (v === null || v === undefined) return "NULL";
+  let s: string;
+  if (v instanceof Date) s = v.toISOString();
+  else if (Array.isArray(v)) s = "{" + v.map((x) => (x === null || x === undefined ? "NULL" : `"${String(x).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)).join(",") + "}";
+  else if (typeof v === "object") s = JSON.stringify(v);
+  else s = String(v);
+  if (s.includes("\0")) throw new Error("NUL character in query parameter");
+  const q = s.replace(/'/g, "''");
+  return s.includes("\\") ? ` E'${q.replace(/\\/g, "\\\\")}'` : `'${q}'`;
+}
+
+/** Replace $1..$n outside quoted strings / identifiers / comments. Returns null if the SQL has dollar quoting. */
+function inline(text: string, params: unknown[]): string | null {
+  if (text.includes("$$")) return null;
+  let out = "", i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      const end = text.indexOf(ch, i + 1);
+      if (end < 0) return null;
+      // doubled quote inside a literal: keep scanning
+      let j = end;
+      while (text[j + 1] === ch) { const n = text.indexOf(ch, j + 2); if (n < 0) return null; j = n; }
+      out += text.slice(i, j + 1); i = j + 1; continue;
+    }
+    if (ch === "-" && text[i + 1] === "-") { const e = text.indexOf("\n", i); const j = e < 0 ? text.length : e; out += text.slice(i, j); i = j; continue; }
+    if (ch === "$" && /[0-9]/.test(text[i + 1] ?? "")) {
+      let j = i + 1; while (/[0-9]/.test(text[j] ?? "")) j++;
+      const n = Number(text.slice(i + 1, j));
+      if (n < 1 || n > params.length) return null;
+      out += literal(params[n - 1]); i = j; continue;
+    }
+    out += ch; i++;
+  }
+  return out;
+}
 
 export async function q<T extends QueryResultRow = QueryResultRow>(
   text: string,
@@ -71,6 +120,15 @@ export async function q<T extends QueryResultRow = QueryResultRow>(
   // inside tx(): the transaction already carries the company
   if (isClient(db)) return (await db.query<T>(text, params as never[])).rows;
   const c = await pool().connect();
+  const single = params.some((p) => Buffer.isBuffer(p) || p instanceof Uint8Array) ? null : inline(text, params);
+  if (single) {
+    try {
+      const res = await c.query(`${await contextSql()}; ${single}`) as unknown as { rows: T[] }[] | { rows: T[] };
+      return Array.isArray(res) ? res[res.length - 1].rows : res.rows;
+    } finally {
+      c.release();
+    }
+  }
   try {
     await begin(c);
     const r = await c.query<T>(text, params as never[]);

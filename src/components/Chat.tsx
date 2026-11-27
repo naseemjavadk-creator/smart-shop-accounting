@@ -31,8 +31,13 @@ export function Chat() {
     setMsgs(next); setText(""); setBusy(true);
     try {
       const r = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
-      const j = await r.json();
-      setMsgs([...next, { role: "assistant", content: r.ok ? j.reply : `⚠️ ${j.error ?? "Something went wrong"}` }]);
+      const j = await r.json().catch(() => ({}));
+      // our own errors carry "error"; a host timeout/crash page does not, so say what happened instead
+      const why = j.error
+        || (r.status === 502 || r.status === 504 || /time/i.test(j.errorMessage ?? "") ? "The server took too long to answer (time limit). Please try again."
+          : r.status === 401 ? "You are logged out. Please log in again."
+          : `Server error ${r.status}${j.errorMessage ? `: ${j.errorMessage}` : ""}. Please try again.`);
+      setMsgs([...next, { role: "assistant", content: r.ok && j.reply ? j.reply : `⚠️ ${why}` }]);
     } catch {
       setMsgs([...next, { role: "assistant", content: "⚠️ No connection. The AI chat needs internet." }]);
     }

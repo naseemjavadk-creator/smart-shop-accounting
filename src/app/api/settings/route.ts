@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handle } from "@/lib/api";
 import { requireUser, HttpError } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
+import { forgetGeminiKey } from "@/lib/ai/provider";
 import { q } from "@/lib/db";
 import { setSetting } from "@/lib/settings";
 import { audit } from "@/lib/audit";
@@ -28,6 +29,7 @@ export const PATCH = handle(async (req: Request) => {
   if (gemini_key !== undefined) {
     if (gemini_key && !/^[A-Za-z0-9_-]{20,}$/.test(gemini_key)) throw new HttpError(400, "That does not look like a Gemini API key");
     await setSetting("ai_key", gemini_key ? { gemini: encryptSecret(gemini_key) } : {});
+    forgetGeminiKey(user.company_id);
   }
   for (const [k, v] of Object.entries(rest)) if (v) await setSetting(k as "shop", v as never);
   if (rest.shop?.name) await q(`update companies set name = $1 where id = app_company()`, [rest.shop.name]);

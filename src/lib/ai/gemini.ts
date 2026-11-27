@@ -28,6 +28,13 @@ type GResponse = {
 
 const BASE = () => (process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
 const TIMEOUT = () => Number(process.env.GEMINI_TIMEOUT_MS || 50_000);
+/**
+ * Free hosts stop a request after a fixed time (Netlify: about 30 s) and then send their own error page, so the
+ * person only sees "Something went wrong". Every AI request therefore has a deadline that ends a few seconds
+ * before that, and we answer with a clear message ourselves.
+ */
+export const AI_BUDGET = () => Number(process.env.AI_TIME_BUDGET_MS || 24_000);
+const tooSlow = () => new HttpError(504, "The AI took too long to answer (free AI is busy right now). Please try again in a moment.");
 
 export const geminiConfigured = () => !!process.env.GEMINI_API_KEY;
 
@@ -53,19 +60,21 @@ async function fairShare() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function call(model: string, body: Record<string, unknown>, apiKey: string): Promise<{ status: number; json: GResponse & { error?: { message?: string; status?: string } } }> {
+async function call(model: string, body: Record<string, unknown>, apiKey: string, deadline: number): Promise<{ status: number; json: GResponse & { error?: { message?: string; status?: string } } }> {
   try {
     const res = await fetch(`${BASE()}/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT()),
+      signal: AbortSignal.timeout(Math.max(1000, Math.min(TIMEOUT(), deadline - Date.now()))),
     });
     const json = await res.json().catch(() => ({}));
     return { status: res.status, json };
   } catch (e) {
     if (e instanceof HttpError) throw e;
-    return { status: 504, json: { error: { message: e instanceof Error ? e.message : String(e) } } };
+    // 504 = our time limit ran out; 0 = could not connect at all
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    return { status: timedOut ? 504 : 0, json: { error: { message: e instanceof Error ? e.message : String(e) } } };
   }
 }
 
@@ -77,11 +86,20 @@ export async function generate(opts: {
   feature: string; model: string; userId: string | null;
   system: string; contents: GContent[];
   generationConfig?: Record<string, unknown>; tools?: GFunction[];
+  /** time (ms since epoch) by which we must have an answer; default now + AI_TIME_BUDGET_MS */
+  deadline?: number;
 }): Promise<{ content: GContent; text: string; model: string; cost: number; finishReason?: string }> {
+  // Speed: Gemini 3 Flash "thinks" at medium/high by default, which can take many seconds. Reading a bill or
+  // an entry needs little reasoning, so ask for low thinking (GEMINI_THINKING=off to send nothing).
+  const thinking = (process.env.GEMINI_THINKING || "low").toLowerCase();
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: opts.system }] },
     contents: opts.contents,
-    generationConfig: { temperature: 0.1, ...opts.generationConfig },
+    generationConfig: {
+      temperature: 0.1,
+      ...(thinking !== "off" ? { thinkingConfig: { thinkingLevel: thinking } } : {}),
+      ...opts.generationConfig,
+    },
   };
   if (opts.tools?.length) {
     body.tools = [{ functionDeclarations: opts.tools }];
@@ -90,13 +108,21 @@ export async function generate(opts: {
   const models = [opts.model, ...GEMINI_FALLBACKS.filter((m) => m !== opts.model)];
   const attempts: string[] = [...models, models[models.length - 1]];
   let last: { status: number; msg: string } = { status: 0, msg: "" };
+  const deadline = opts.deadline ?? Date.now() + AI_BUDGET();
   const apiKey = await key();
   await fairShare();
 
   for (let i = 0; i < attempts.length; i++) {
     const model = attempts[i];
-    if (i === attempts.length - 1) await sleep(2000);
-    const { status, json } = await call(model, body, apiKey);
+    if (i === attempts.length - 1) { if (deadline - Date.now() < 6000) break; await sleep(2000); }
+    if (deadline - Date.now() < 2500) { if (last.status === 504 || i === 0) throw tooSlow(); break; }
+    let { status, json } = await call(model, body, apiKey, deadline);
+    // an older model that does not know thinkingLevel: ask again without it
+    if (status === 400 && /thinking/i.test(json.error?.message ?? "")) {
+      const gc = { ...(body.generationConfig as Record<string, unknown>) };
+      delete gc.thinkingConfig;
+      ({ status, json } = await call(model, { ...body, generationConfig: gc }, apiKey, deadline));
+    }
     if (status === 200) {
       const u = json.usageMetadata ?? {};
       const cost = await logUsage(opts.feature, json.modelVersion || model, {
@@ -119,7 +145,10 @@ export async function generate(opts: {
   }
   if (last.status === 400 && /api key/i.test(last.msg)) throw new HttpError(503, "The GEMINI_API_KEY on the server is not valid.");
   if (last.status === 403) throw new HttpError(503, "Gemini refused the request (403). Check the API key and that the Gemini API is available in your country.");
-  throw new HttpError(502, `AI service error (${last.status || "network"}). Please try again or enter it by hand.`);
+  if (last.status === 504) throw tooSlow();
+  if (last.status === 0) throw new HttpError(502, "Could not reach the AI service (Gemini). Check the internet connection and try again.");
+  const why = last.msg.replace(/\s+/g, " ").slice(0, 160);
+  throw new HttpError(502, `The AI service (Gemini) gave an error ${last.status}${why ? `: ${why}` : ""}. Please try again or enter it by hand.`);
 }
 
 /** zod schema → JSON Schema that Gemini's responseJsonSchema / parametersJsonSchema accept. */

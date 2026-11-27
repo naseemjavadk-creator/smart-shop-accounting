@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { handle } from "@/lib/api";
 import { requireUser, HttpError } from "@/lib/auth";
 import { q, q1, withCompany } from "@/lib/db";
-import { processOcrJob } from "@/lib/ai/ocr";
+import { processOcrJob, readInParallel } from "@/lib/ai/ocr";
 
 export const maxDuration = 300;
 const MAX = 10 * 1024 * 1024;
@@ -31,7 +31,8 @@ export const POST = handle(async (req: Request) => {
   }
   // start reading in the background; the cron job picks up anything left
   const ids = out.filter((o) => o.status === "queued" && o.job_id).map((o) => o.job_id as string);
-  after(() => withCompany(user.company_id, async () => { for (const id of ids) await processOcrJob(id).catch(() => {}); }));
+  // read several bills at the same time (each one is a separate AI request)
+  after(() => withCompany(user.company_id, () => readInParallel(ids)));
   return NextResponse.json({ jobs: out });
 });
 
@@ -40,7 +41,9 @@ export const GET = handle(async (req: Request) => {
   const status = new URL(req.url).searchParams.get("status");
   const rows = await q(
     `select j.id, j.status, j.error, j.created_at, j.updated_at, f.filename, f.mime, f.id file_id, t.ref_no,
-            j.result->'draft'->>'supplier_name' supplier, j.result->'draft'->>'total' total, j.result->'draft'->>'invoice_no' invoice_no
+            j.result->'draft'->>'supplier_name' supplier, j.result->'draft'->>'total' total, j.result->'draft'->>'invoice_no' invoice_no,
+            j.result->'draft'->>'confidence' confidence, j.result->'draft'->'duplicate'->>'ref_no' duplicate_of,
+            case when j.status = 'review' then j.result->'draft' end draft
        from ocr_jobs j join files f on f.id = j.file_id left join transactions t on t.id = j.txn_id
       where ($1::text is null or j.status = $1) and ($2 or j.created_by = $3)
       order by j.created_at desc limit 200`, [status, user.role === "owner", user.id]);

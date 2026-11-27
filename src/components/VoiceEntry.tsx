@@ -4,7 +4,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Sparkles, CheckCircle2, CloudOff, Loader2, AlertTriangle, PencilLine } from "lucide-react";
 import { VoiceRecorder } from "./VoiceRecorder";
-import { TxnEditor, KIND_LABEL, emptyDraft, type SavedInfo } from "./TxnEditor";
+import { TxnEditor, KIND_LABEL, emptyDraft, checkDraft, saveDraft, draftTotal, type SavedInfo } from "./TxnEditor";
 import { useCatalog } from "./useCatalog";
 import { parsedToDraft, type ParsedTxn } from "./parsedToDraft";
 import { savePending, pendingItems, removePending, onOutboxChange } from "@/lib/offline/sync";
@@ -142,8 +142,41 @@ export function VoiceEntry({ hintType, embedded }: { hintType?: TxnKind; embedde
 }
 
 export function ConfirmCards({ cards, setCards, cat }: { cards: Card[]; setCards: React.Dispatch<React.SetStateAction<Card[]>>; cat: ReturnType<typeof useCatalog> }) {
+  // latest edited version of each card (the forms keep their own state)
+  const [edits, setEdits] = useState<Record<string, Draft>>({});
+  const [bulk, setBulk] = useState<{ busy: boolean; msg: string }>({ busy: false, msg: "" });
+  const open = cards.filter((c) => !c.saved);
+
+  async function saveAll() {
+    setBulk({ busy: true, msg: "" });
+    let saved = 0;
+    const skipped: string[] = [];
+    for (const [i, c] of cards.entries()) {
+      if (c.saved) continue;
+      const d = edits[c.id] ?? c.draft;
+      const problem = c.parsed?.confidence === "low" ? "unclear, please check" : checkDraft(d, cat);
+      if (problem) { skipped.push(`${i + 1}: ${problem}`); continue; }
+      const info = await saveDraft(d, cat);
+      saved++;
+      setCards((cs) => cs.map((x) => (x.id === c.id ? { ...x, saved: info } : x)));
+    }
+    setBulk({ busy: false, msg: `Saved ${saved}.${skipped.length ? ` Check and save these yourself: ${skipped.join("; ")}` : ""}` });
+  }
+
   return (
     <>
+      {open.length > 1 && (
+        <div className="card sticky top-16 z-20 flex flex-wrap items-center justify-between gap-2 border-brand-300 bg-brand-50 p-3 dark:bg-brand-600/15">
+          <div className="text-sm">
+            <b>{open.length} entries</b> · AED {open.reduce((s, c) => s + draftTotal(edits[c.id] ?? c.draft, cat), 0).toFixed(2)}
+            <div className="text-xs text-slate-500">Look through them below, fix anything wrong, then save all at once.</div>
+          </div>
+          <button className="btn-primary" disabled={bulk.busy} onClick={saveAll}>
+            {bulk.busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} Confirm &amp; save all {open.length}
+          </button>
+          {bulk.msg && <div className="w-full text-sm text-brand-700 dark:text-brand-100">{bulk.msg}</div>}
+        </div>
+      )}
       {cards.map((c, i) => (
         <div key={c.id} className={clsx("card p-4", c.saved && "opacity-80")}>
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -163,6 +196,7 @@ export function ConfirmCards({ cards, setCards, cat }: { cards: Card[]; setCards
             <div className="flex items-center gap-2 text-emerald-600"><CheckCircle2 size={18} /> Saved: {c.saved.summary} · AED {c.saved.total.toFixed(2)}</div>
           ) : (
             <TxnEditor initial={c.draft} cat={cat} compact
+              onChange={(d) => setEdits((e) => ({ ...e, [c.id]: d }))}
               onCancel={() => setCards((cs) => cs.filter((x) => x.id !== c.id))}
               onSaved={(s) => setCards((cs) => cs.map((x) => (x.id === c.id ? { ...x, saved: s } : x)))} />
           )}

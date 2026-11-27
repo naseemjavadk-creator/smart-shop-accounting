@@ -59,11 +59,13 @@ export function PurchaseBillEntry({ kind }: { kind: "photo" | "file" }) {
     // one bill: wait for it to be read, then open the check screen
     setBusy("Reading the bill…");
     const id = jobs[0].job_id!;
-    for (let i = 0; i < 25; i++) {
+    // read it straight away in this request (if the server already started, just wait for it)
+    await fetch(`/api/bills/process?id=${id}`, { method: "POST" }).catch(() => null);
+    for (let i = 0; i < 40; i++) {
       const s = await fetch(`/api/bills/${id}`).then((x) => x.json()).catch(() => null);
       if (s && !["queued", "processing"].includes(s.status)) break;
-      if (i % 3 === 2) await fetch("/api/bills/process", { method: "POST" }).catch(() => null);
-      await new Promise((res) => setTimeout(res, 2000));
+      if (i % 5 === 4) await fetch("/api/bills/process", { method: "POST" }).catch(() => null);
+      await new Promise((res) => setTimeout(res, 1200));
     }
     router.push(`/scan/${id}`);
   }

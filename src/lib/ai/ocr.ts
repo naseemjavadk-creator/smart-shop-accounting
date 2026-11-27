@@ -127,18 +127,18 @@ export async function billToDraft(bill: Bill) {
     duplicate = await q1(`select id, ref_no from transactions where type = 'purchase' and status = 'posted'
       and party_id = $1 and lower(invoice_no) = lower($2)`, [supplier.id, bill.invoice_no]);
   }
-  const items = [];
-  for (const it of bill.items) {
+  // match all lines at the same time (one round trip each, in parallel)
+  const items = await Promise.all(bill.items.map(async (it) => {
     const qty = it.qty && it.qty > 0 ? it.qty : 1;
     // prefer the printed unit price; else derive it from the line total
     const unit_price = it.unit_price ?? (it.line_total != null ? Math.round((it.line_total / qty) * 10000) / 10000 : 0);
     const cands = (await findProducts(it.description, 4)).map((p) => ({ id: p.id, name: p.name, unit: p.unit, sim: p.sim }));
     const best = cands[0] && cands[0].sim >= 0.55 ? cands[0] : null;
-    items.push({
+    return {
       description: it.description, qty, unit: it.unit ?? best?.unit ?? "piece", unit_price, discount: it.discount ?? 0,
       line_total: it.line_total, product_id: best?.id ?? null, product_name: best?.name ?? null, candidates: cands,
-    });
-  }
+    };
+  }));
   return {
     supplier_id: supplier?.id ?? null,
     supplier_name: supplier?.name ?? bill.supplier_name,
@@ -181,6 +181,16 @@ export async function processOcrJob(jobId: string) {
                attempts = case when $3 then greatest(attempts - 1, 0) else attempts end where id = $1`, [jobId, msg.slice(0, 1000), transient]);
     return { status: "failed", error: msg };
   }
+}
+
+/** How many bills are read at the same time. The Gemini free tier allows only a few requests per minute. */
+export const PARALLEL = Math.max(1, Number(process.env.BILLS_PARALLEL || 3));
+
+export async function readInParallel(ids: string[]) {
+  const queue = [...ids];
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, async () => {
+    for (let id = queue.shift(); id; id = queue.shift()) await processOcrJob(id).catch(() => {});
+  }));
 }
 
 export async function nextQueuedJobs(limit = 3) {

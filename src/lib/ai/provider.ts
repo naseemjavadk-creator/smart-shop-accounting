@@ -22,7 +22,21 @@ export function provider(): Provider {
 export const aiConfigured = () => (provider() === "gemini" ? !!process.env.GEMINI_API_KEY : !!process.env.ANTHROPIC_API_KEY);
 
 /** The Gemini key for the current company: its own key if the owner added one, else the app's shared key. */
+const keyCache = new Map<string, { v: { key: string | null; own: boolean }; at: number }>();
+export function forgetGeminiKey(companyId: string) { keyCache.delete(companyId); }
+
 export async function geminiKey(): Promise<{ key: string | null; own: boolean }> {
+  // cached for a minute per company: saves a database round trip on every AI call
+  const { currentCompanyId } = await import("../db");
+  const cid = (await currentCompanyId()) ?? "";
+  const hit = keyCache.get(cid);
+  if (hit && Date.now() - hit.at < 60_000) return hit.v;
+  const v = await loadGeminiKey();
+  keyCache.set(cid, { v, at: Date.now() });
+  return v;
+}
+
+async function loadGeminiKey(): Promise<{ key: string | null; own: boolean }> {
   const { getSetting } = await import("../settings");
   const { decryptSecret } = await import("../crypto");
   const s = await getSetting("ai_key").catch(() => ({} as { gemini?: string }));

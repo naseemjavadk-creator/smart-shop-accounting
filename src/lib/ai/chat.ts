@@ -2,7 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { claude, FALLBACK, logUsage, assertBudget } from "./claude";
 import { provider, CLAUDE_MODELS, GEMINI_MODELS } from "./provider";
-import { generate, type GContent, type GPart } from "./gemini";
+import { generate, AI_BUDGET, type GContent, type GPart } from "./gemini";
 import * as R from "../reports";
 import { num } from "../db";
 import { addDays, isISODate, todayISO } from "../dates";
@@ -160,15 +160,24 @@ async function runCall(name: string, args: Record<string, unknown>) {
 }
 
 async function chatGemini(history: ChatTurn[], userId: string) {
+  const deadline = Date.now() + AI_BUDGET();
   const today = todayISO();
-  const system = `${SYSTEM}\n\nToday is ${today} (yesterday ${addDays(today, -1)}), time zone Asia/Dubai.`;
+  // Speed: the most common questions ("how much sale today?", "purchases this month?") are answered from these
+  // figures in ONE AI call, instead of the AI asking for them first and then answering (two slow calls).
+  const monthStart = today.slice(0, 8) + "01";
+  const [day, month] = await Promise.all([R.periodSummary(today, today), R.periodSummary(monthStart, today)]).catch(() => [null, null]);
+  const facts = day && month
+    ? `\n\nAlready looked up from the records (use these directly; call tools only for anything else):\n` +
+      `period_summary today (${today}): ${JSON.stringify(day)}\nperiod_summary this month (${monthStart} to ${today}): ${JSON.stringify(month)}`
+    : "";
+  const system = `${SYSTEM}\n\nToday is ${today} (yesterday ${addDays(today, -1)}), time zone Asia/Dubai.${facts}`;
   const contents: GContent[] = history.slice(-12).map((h) => ({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: h.content.slice(0, 4000) }] }));
   const tools = TOOLS.map((t) => ({ name: t.name, description: t.description ?? "", parametersJsonSchema: t.input_schema as unknown as Record<string, unknown> }));
   let cost = 0;
   const used: string[] = [];
 
   for (let step = 0; step < 8; step++) {
-    const r = await generate({ feature: "chat", model: GEMINI_MODELS.chat, userId, system, contents, tools });
+    const r = await generate({ feature: "chat", model: GEMINI_MODELS.chat, userId, system, contents, tools, deadline });
     cost += r.cost;
     // keep the model's parts exactly as returned (they can carry thought signatures Gemini needs back)
     contents.push(r.content);

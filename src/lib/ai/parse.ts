@@ -169,9 +169,12 @@ async function parseInput({ said, parts = [], userId, hint, feature }: { said: s
   const byId = new Map(cat.products.map((p) => [p.id, p]));
   const validExpense = new Set(cat.expenseAccounts.map((a) => a.id));
   const out: ParsedTxn[] = [];
-  for (const t of draft.transactions) {
+  // look up similar products for every line at once (in parallel) instead of one after another
+  const candLists = await Promise.all(draft.transactions.map((t) => Promise.all(t.items.map((it) =>
+    findProducts(it.new_product_name || it.spoken_name, 4)))));
+  for (const [ti, t] of draft.transactions.entries()) {
     const items: ParsedLine[] = [];
-    for (const it of t.items) {
+    for (const [ii, it] of t.items.entries()) {
       const known = it.product_id && byId.has(it.product_id) ? byId.get(it.product_id)! : null;
       const qty = it.qty > 0 ? it.qty : 1;
       let unitPrice: number, total: number, src: ParsedLine["price_source"];
@@ -185,7 +188,7 @@ async function parseInput({ said, parts = [], userId, hint, feature }: { said: s
       } else {
         unitPrice = 0; total = 0; src = "missing";
       }
-      const cands = (await findProducts(it.new_product_name || it.spoken_name, 4)).map((p) => ({
+      const cands = candLists[ti][ii].map((p) => ({
         id: p.id, name: p.name, unit: p.unit, selling_price: num(p.selling_price), purchase_price: num(p.purchase_price),
       }));
       items.push({
