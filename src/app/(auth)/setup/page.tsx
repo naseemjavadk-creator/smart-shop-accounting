@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +11,8 @@ export default function SignupPage() {
     name: "", email: "", password: "", password2: "", setup_code: "",
   });
   const [err, setErr] = useState("");
+  const [rules, setRules] = useState<{ open: boolean; code_required: boolean } | null>(null);
+  useEffect(() => { fetch("/api/auth/setup").then((r) => r.json()).then(setRules).catch(() => setRules({ open: true, code_required: false })); }, []);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? Number(e.target.value) : e.target.value });
@@ -60,11 +62,12 @@ export default function SignupPage() {
         <div><label className="label">Email (this is your username)</label><input className="input" type="email" autoComplete="username" value={f.email} onChange={set("email")} required /></div>
         <div><label className="label">Password (8+ characters)</label><input className="input" type="password" autoComplete="new-password" value={f.password} onChange={set("password")} required minLength={8} /></div>
         <div><label className="label">Password again</label><input className="input" type="password" autoComplete="new-password" value={f.password2} onChange={set("password2")} required minLength={8} /></div>
-        <div><label className="label">Sign-up code (only if you were given one)</label><input className="input" value={f.setup_code} onChange={set("setup_code")} /></div>
+        {rules?.code_required && <div><label className="label">Sign-up code</label><input className="input" required value={f.setup_code} onChange={set("setup_code")} /></div>}
       </fieldset>
 
       {err && <p className="text-sm text-rose-600">{err}</p>}
-      <button className="btn-primary w-full py-3" disabled={busy}>{busy ? "Creating…" : "Create company"}</button>
+      {rules && !rules.open && <p className="text-sm text-rose-600">New sign-ups are closed. Ask the app owner.</p>}
+      <button className="btn-primary w-full py-3" disabled={busy || (rules ? !rules.open : false)}>{busy ? "Creating…" : "Create company"}</button>
       <p className="text-center text-sm text-slate-500">Already have an account? <Link className="text-brand-600" href="/login">Sign in</Link></p>
     </form>
   );

@@ -25,10 +25,17 @@ const Body = z.object({
  * Sign-up: creates a new company with its own books (chart of accounts, settings) and its owner login.
  * Open to anyone unless ALLOW_SIGNUP=false; if SETUP_CODE is set, the code is required (an invite code).
  */
+// an empty or missing SETUP_CODE means open sign-up (no code asked)
+const signupCode = () => (process.env.SETUP_CODE ?? "").trim();
+const signupOpen = () => (process.env.ALLOW_SIGNUP ?? "").trim().toLowerCase() !== "false";
+
+/** Tells the sign-up page whether to show the code box. Never reveals the code. */
+export const GET = handle(async () => NextResponse.json({ open: signupOpen(), code_required: signupCode() !== "" }));
+
 export const POST = handle(async (req: Request) => {
-  if (process.env.ALLOW_SIGNUP === "false") throw new HttpError(403, "New sign-ups are closed. Ask the app owner.");
+  if (!signupOpen()) throw new HttpError(403, "New sign-ups are closed. Ask the app owner.");
   const b = Body.parse(await req.json());
-  if (process.env.SETUP_CODE && b.setup_code?.trim() !== process.env.SETUP_CODE) throw new HttpError(403, "Wrong sign-up code");
+  if (signupCode() && b.setup_code?.trim() !== signupCode()) throw new HttpError(403, "Wrong sign-up code");
   const taken = await asSystem(() => q1(`select 1 from users where email = $1`, [b.email]));
   if (taken) throw new HttpError(409, "This email already has an account. Please sign in.");
   const hash = await hashPassword(b.password);
