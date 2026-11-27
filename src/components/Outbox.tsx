@@ -25,7 +25,7 @@ export function Outbox() {
 
   return (
     <div>
-      <PageHeader title="Saved on this phone" subtitle="Every entry is saved here first, then sent to the cloud automatically."
+      <PageHeader title="Waiting to upload" subtitle="Every entry is saved here first, then sent to the cloud automatically."
         actions={<button className="btn-secondary" onClick={() => syncNow()}><RefreshCw size={16} /> Sync now</button>} />
       {pend.length > 0 && (
         <div className="card mb-4 p-4">

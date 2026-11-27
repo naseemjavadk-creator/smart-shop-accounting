@@ -22,7 +22,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
   return (
     <div>
-      <PageHeader title="Transactions" subtitle={`${r.label}: ${fmtDate(r.from)} – ${fmtDate(r.to)} · ${rows.length} entries`}
+      <PageHeader title="All entries" subtitle={`${r.label}: ${fmtDate(r.from)} – ${fmtDate(r.to)} · ${rows.length} entries`}
         actions={<ExportButtons report={report} from={r.from} to={r.to} />} />
       <RangeBar from={r.from} to={r.to} extra={<SearchFilters types={Object.entries(TYPE_LABEL)} />} />
       <div className="mb-3 flex flex-wrap gap-4 text-sm">

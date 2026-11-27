@@ -9,7 +9,9 @@ import { TxnEditor, KIND_LABEL, emptyDraft, type SavedInfo } from "./TxnEditor";
 import { useCatalog } from "./useCatalog";
 import type { TxnKind } from "@/lib/offline/types";
 
-const OTHER: TxnKind[] = ["sale", "purchase", "expense", "receipt", "payment", "sale_return", "purchase_return", "stock_adjustment", "transfer"];
+const MAIN: TxnKind[] = ["sale", "purchase", "expense"];
+// less common entries stay one tap away under "More"
+const OTHER: TxnKind[] = ["receipt", "payment", "sale_return", "purchase_return", "stock_adjustment", "transfer"];
 
 type Method = "voice" | "photo" | "file" | "type";
 const METHODS: { id: Method; label: string; icon: typeof Mic; color: string }[] = [
@@ -34,13 +36,17 @@ export function NewEntry({ type }: { type: TxnKind }) {
   const [saved, setSaved] = useState<SavedInfo | null>(null);
   const [n, setN] = useState(0);
   const owner = cat?.user.role === "owner";
+  const [more, setMore] = useState(OTHER.includes(type));
+  const chip = (t: TxnKind) => (
+    <Link key={t} href={`/new/${t}`} className={`chip px-3 py-1.5 text-sm ${t === type ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>{KIND_LABEL[t]}</Link>
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {OTHER.filter((t) => t !== "transfer" || owner).map((t) => (
-          <Link key={t} href={`/new/${t}`} className={`chip px-3 py-1.5 text-sm ${t === type ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>{KIND_LABEL[t]}</Link>
-        ))}
+        {MAIN.map(chip)}
+        {more ? OTHER.filter((t) => t !== "transfer" || owner).map(chip)
+          : <button type="button" className="chip bg-slate-100 px-3 py-1.5 text-sm text-slate-500 dark:bg-slate-800" onClick={() => setMore(true)}>More…</button>}
       </div>
       <h1 className="mb-3 text-2xl font-bold">New {KIND_LABEL[type].toLowerCase()}</h1>
       {aiOk && !saved && (

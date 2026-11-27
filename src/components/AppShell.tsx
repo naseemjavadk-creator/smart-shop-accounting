@@ -5,13 +5,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   LayoutDashboard, Mic, ShoppingCart, Receipt, Wallet, ScanLine, Boxes, MessageSquareText, BarChart3,
-  Settings, Users, Moon, Sun, LogOut, ListOrdered, X, CloudUpload, LayoutGrid, Home,
+  Settings, Users, Moon, Sun, LogOut, ListOrdered, X, CloudUpload, LayoutGrid, Home, SlidersHorizontal,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { SyncBadge } from "./SyncBadge";
 import { startSyncLoop, refreshCatalog } from "@/lib/offline/sync";
 
-type Item = { href: string; label: string; icon: typeof Mic; show: boolean; color: string };
+type Item = { href: string; label: string; ml?: string; icon: typeof Mic; show: boolean; color: string };
 
 export function AppShell({ user, shopName, children }: { user: SessionUser; shopName: string; children: ReactNode }) {
   const path = usePathname();
@@ -31,19 +31,20 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
   useEffect(() => setOpen(false), [path]);
 
   const items: Item[] = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true, color: "bg-slate-600" },
-    { href: "/entry", label: "Voice entry", icon: Mic, show: true, color: "bg-brand-600" },
-    { href: "/new/sale", label: "Add sale", icon: ShoppingCart, show: owner || user.can_sales, color: "bg-emerald-600" },
-    { href: "/new/purchase", label: "Add purchase", icon: Receipt, show: owner || user.can_purchases, color: "bg-sky-600" },
-    { href: "/new/expense", label: "Add expense", icon: Wallet, show: owner || user.can_expenses, color: "bg-amber-500" },
-    { href: "/scan", label: "Scan bills", icon: ScanLine, show: owner || user.can_purchases, color: "bg-violet-600" },
-    { href: "/inventory", label: "Inventory", icon: Boxes, show: true, color: "bg-orange-500" },
-    { href: "/transactions", label: "Transactions", icon: ListOrdered, show: reports, color: "bg-cyan-600" },
-    { href: "/parties", label: "Customers & suppliers", icon: Users, show: true, color: "bg-pink-600" },
-    { href: "/chat", label: "AI accounting chat", icon: MessageSquareText, show: reports, color: "bg-indigo-600" },
-    { href: "/reports", label: "Reports", icon: BarChart3, show: reports, color: "bg-teal-600" },
-    { href: "/outbox", label: "Saved on this phone", icon: CloudUpload, show: true, color: "bg-lime-600" },
-    { href: "/settings", label: "Settings", icon: Settings, show: owner, color: "bg-slate-500" },
+    { href: "/", label: "Home", ml: "ഹോം", icon: LayoutDashboard, show: true, color: "bg-slate-600" },
+    { href: "/entry", label: "Speak an entry", ml: "പറഞ്ഞ് ചേർക്കാം", icon: Mic, show: true, color: "bg-brand-600" },
+    { href: "/new/sale", label: "Sale", ml: "വിൽപ്പന", icon: ShoppingCart, show: owner || user.can_sales, color: "bg-emerald-600" },
+    { href: "/new/purchase", label: "Purchase", ml: "വാങ്ങൽ", icon: Receipt, show: owner || user.can_purchases, color: "bg-sky-600" },
+    { href: "/new/expense", label: "Expense", ml: "ചെലവ്", icon: Wallet, show: owner || user.can_expenses, color: "bg-amber-500" },
+    { href: "/scan", label: "Scan bills", ml: "ബിൽ സ്കാൻ", icon: ScanLine, show: owner || user.can_purchases, color: "bg-violet-600" },
+    { href: "/inventory", label: "Stock", ml: "സ്റ്റോക്ക്", icon: Boxes, show: true, color: "bg-orange-500" },
+    { href: "/parties", label: "Customers & suppliers", ml: "കസ്റ്റമർ / സപ്ലയർ", icon: Users, show: true, color: "bg-pink-600" },
+    { href: "/chat", label: "Ask AI", ml: "AI-യോട് ചോദിക്കാം", icon: MessageSquareText, show: reports, color: "bg-indigo-600" },
+    { href: "/reports", label: "Reports", ml: "റിപ്പോർട്ട്", icon: BarChart3, show: reports, color: "bg-teal-600" },
+    { href: "/transactions", label: "All entries", ml: "എല്ലാ എൻട്രികളും", icon: ListOrdered, show: reports, color: "bg-cyan-600" },
+    { href: "/outbox", label: "Waiting to upload", ml: "അപ്‌ലോഡ് ബാക്കി", icon: CloudUpload, show: true, color: "bg-lime-600" },
+    { href: "/settings", label: "Settings", ml: "സെറ്റിങ്സ്", icon: Settings, show: owner, color: "bg-slate-500" },
+    { href: "/advanced", label: "Advanced", ml: "അക്കൗണ്ടന്റിന്", icon: SlidersHorizontal, show: reports, color: "bg-stone-500" },
   ];
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
 
@@ -85,7 +86,7 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
           className={clsx("card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold leading-tight active:scale-95",
             active(i.href) && "!border-brand-500 ring-2 ring-brand-500/30")}>
           <span className={clsx("flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-sm", i.color)}><i.icon size={26} /></span>
-          {i.label}
+          <span>{i.label}{i.ml && <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{i.ml}</span>}</span>
         </Link>
       ))}
       <button onClick={toggleTheme} className="card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold active:scale-95">

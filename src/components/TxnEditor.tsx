@@ -8,8 +8,8 @@ import { uuid } from "@/lib/offline/idb";
 import { saveEntry } from "@/lib/offline/sync";
 
 export const KIND_LABEL: Record<TxnKind, string> = {
-  sale: "Sale", purchase: "Purchase", expense: "Expense", receipt: "Payment received", payment: "Pay supplier",
-  sale_return: "Sales return", purchase_return: "Purchase return", stock_adjustment: "Stock adjustment", transfer: "Cash ↔ Bank",
+  sale: "Sale", purchase: "Purchase", expense: "Expense", receipt: "Customer paid me", payment: "I paid supplier",
+  sale_return: "Customer returned goods", purchase_return: "Returned to supplier", stock_adjustment: "Stock correction", transfer: "Cash ↔ Bank",
 };
 
 export function todayLocal() {
@@ -169,6 +169,11 @@ export function TxnEditor({
   useEffect(() => { changeRef.current?.(d); }, [d]);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
+  // simple by default: date (today), bill number and VAT override sit under "More options" unless already filled
+  const [moreOpts, setMoreOpts] = useState(false);
+  const showDate = moreOpts || d.txn_date !== todayLocal();
+  const showInvoice = moreOpts || !!d.invoice_no;
+  const showVatOverride = moreOpts || d.vat_override != null;
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
   const setLine = (key: string, p: Partial<DraftLine>) => setD((x) => ({ ...x, lines: x.lines.map((l) => (l.key === key ? { ...l, ...p } : l)) }));
   const totals = useMemo(() => draftTotals(d, cat), [d, cat]);
@@ -214,12 +219,14 @@ export function TxnEditor({
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className="label">Date</label>
-          <input type="date" className="input" value={d.txn_date} onChange={(e) => set({ txn_date: e.target.value })} />
-        </div>
+        {showDate && (
+          <div>
+            <label className="label">Date</label>
+            <input type="date" className="input" value={d.txn_date} onChange={(e) => set({ txn_date: e.target.value })} />
+          </div>
+        )}
         {d.type !== "stock_adjustment" && d.type !== "transfer" && partyField}
-        {(d.type === "purchase" || d.type === "expense") && (
+        {showInvoice && (d.type === "purchase" || d.type === "expense") && (
           <div>
             <label className="label">Bill / invoice no. (optional)</label>
             <input className="input" value={d.invoice_no} onChange={(e) => set({ invoice_no: e.target.value })} />
@@ -342,7 +349,7 @@ export function TxnEditor({
             {(amountOnly ? ["cash", "bank"] : ["cash", "card", "bank", "credit"]).map((m) => (
               <button key={m} type="button" onClick={() => set({ payment_method: m as Draft["payment_method"] })}
                 className={clsx("chip px-4 py-2 text-sm capitalize", d.payment_method === m ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300")}>
-                {m === "credit" ? (pk === "customer" ? "Credit (pay later)" : "Credit (pay later)") : m}
+                {m === "credit" ? "Pay later" : m}
               </button>
             ))}
           </div>
@@ -360,7 +367,7 @@ export function TxnEditor({
               <input type="checkbox" checked={totals.include} onChange={(e) => set({ prices_include_vat: e.target.checked })} /> Prices include VAT ({cat.vat.standard_rate}%)
             </label>
           )}
-          {(d.type === "purchase" || d.type === "expense") && (
+          {showVatOverride && (d.type === "purchase" || d.type === "expense") && (
             <label className="flex items-center gap-2">VAT on bill
               <input type="number" step="0.01" className="input w-28 py-1.5" placeholder="auto" value={d.vat_override ?? ""} onChange={(e) => set({ vat_override: e.target.value === "" ? null : Number(e.target.value) })} />
             </label>
@@ -373,6 +380,12 @@ export function TxnEditor({
           <label className="label">Note (optional)</label>
           <input className="input" value={d.notes} onChange={(e) => set({ notes: e.target.value })} />
         </div>
+      )}
+
+      {!moreOpts && d.type !== "transfer" && (
+        <button type="button" className="text-sm text-brand-600" onClick={() => setMoreOpts(true)}>
+          + More options ({d.type === "purchase" || d.type === "expense" ? "date, bill no., VAT amount" : "date"})
+        </button>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
@@ -388,8 +401,9 @@ export function TxnEditor({
               <div className="grid min-w-56 grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
                 <span className="text-slate-500">Gross amount</span><span className="text-right tabular-nums">{fmt(totals.net)}</span>
                 <span className="text-slate-500">VAT</span><span className="text-right tabular-nums">{fmt(totals.vat)}</span>
-                <span className="border-t border-slate-200 pt-1 text-lg font-bold dark:border-slate-700">Grand total</span>
-                <span className="border-t border-slate-200 pt-1 text-right text-lg font-bold tabular-nums dark:border-slate-700">AED {fmt(totals.total)}</span>
+                <span className="col-span-2 my-0.5 border-t border-slate-200 dark:border-slate-700" />
+                <span className="text-lg font-bold">Grand total</span>
+                <span className="text-right text-lg font-bold tabular-nums">AED {fmt(totals.total)}</span>
               </div>
             </>
           )}

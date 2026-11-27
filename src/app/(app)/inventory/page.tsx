@@ -25,7 +25,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   return (
     <div>
-      <PageHeader title="Inventory" subtitle={`${rows.length} products${seeCost ? ` · stock value ${aed(value)}` : ""}`}
+      <PageHeader title="Stock" subtitle={`${rows.length} products${seeCost ? ` · stock value ${aed(value)}` : ""}`}
         actions={<>
           <Link className="btn-secondary" href="/new/stock_adjustment">Adjust stock</Link>
           {can(user, "purchases") && <Link className="btn-primary" href="/inventory/new"><Plus size={16} /> Add product</Link>}

@@ -13,12 +13,16 @@ import { Reconcile } from "@/components/Reconcile";
 import { PrintButton } from "@/components/PrintButton";
 import { TYPE_LABEL, type TxnType } from "@/lib/accounting/schema";
 
-const TABS = [
-  ["summary", "Daily & summary"], ["monthly", "Monthly"], ["sales", "Sales by product"], ["expenses", "Expenses"],
-  ["pnl", "Profit & loss"], ["balance", "Balance sheet"], ["trial", "Trial balance"], ["cashflow", "Cash flow"],
-  ["cash", "Cash book"], ["bank", "Bank book"], ["ledger", "General ledger"], ["receivables", "Customer outstanding"],
-  ["payables", "Supplier outstanding"], ["stock", "Stock valuation"], ["vat", "VAT"],
+// everyday reports first, in plain words; accounting reports only show under "Advanced"
+const SIMPLE = [
+  ["summary", "Money in & out"], ["sales", "Best sellers"], ["expenses", "Expenses"], ["receivables", "Customers owe me"],
+  ["payables", "I owe suppliers"], ["stock", "Stock left"], ["vat", "VAT"],
 ] as const;
+const ADVANCED = [
+  ["pnl", "Profit & loss"], ["balance", "Balance sheet"], ["cashflow", "Cash flow"], ["cash", "Cash book"], ["bank", "Bank book"],
+  ["ledger", "General ledger"], ["trial", "Trial balance"], ["monthly", "Month by month"],
+] as const;
+const TABS = [...SIMPLE, ...ADVANCED];
 
 type SP = Record<string, string | string[] | undefined>;
 
@@ -68,14 +72,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       body = (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Net sales (excl. VAT)" value={aed(s.net_sales)} hint={`${s.sales_count} sales · incl. VAT ${aed(s.sales_gross)}`} />
-            <Stat label="Gross profit" value={aed(s.gross_profit)} hint={`Cost of goods ${aed(s.cogs)}`} />
-            <Stat label="Expenses" value={aed(s.expenses)} hint={s.other_costs ? `+ stock loss/other ${aed(s.other_costs)}` : undefined} />
-            <Stat label="Net profit" value={aed(s.net_profit)} tone={s.net_profit >= 0 ? "good" : "bad"} />
-            <Stat label="Purchases (excl. VAT)" value={aed(s.purchases)} hint={`${s.purchase_count} bills`} />
-            <Stat label="VAT on sales" value={aed(s.vat_output)} />
-            <Stat label="VAT on purchases" value={aed(s.vat_input)} />
-            <Stat label="Sales returns" value={aed(s.sales_returns)} />
+            <Stat label="Money in (sales, with VAT)" value={aed(s.sales_gross)} hint={`${s.sales_count} sales · before VAT ${aed(s.net_sales)}`} tone="good" />
+            <Stat label="Money out (purchases + expenses)" value={aed(s.purchases_gross + s.expenses_gross)} hint={`${s.purchase_count} bills · ${s.expense_count} expenses`} />
+            <Stat label="Profit" value={aed(s.net_profit)} tone={s.net_profit >= 0 ? "good" : "bad"} hint="after cost of goods and expenses" />
+            <Stat label="Profit on goods sold" value={aed(s.gross_profit)} hint={`goods cost ${aed(s.cogs)}`} />
+            <Stat label="Purchases (before VAT)" value={aed(s.purchases)} />
+            <Stat label="Expenses (before VAT)" value={aed(s.expenses)} hint={s.other_costs ? `+ stock loss/other ${aed(s.other_costs)}` : undefined} />
+            <Stat label="VAT collected / paid" value={`${aed(s.vat_output)} / ${aed(s.vat_input)}`} />
+            <Stat label="Goods returned by customers" value={aed(s.sales_returns)} />
           </div>
           {days.length <= 92 && <Card className="p-4"><DailyChart data={days} /></Card>}
           <Card className="overflow-x-auto">
@@ -259,11 +263,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         actions={exportFor[tab] ? <ExportButtons report={exportFor[tab]} from={from} to={to} /> : <PrintButton />} />
       <div className="no-print -mx-4 mb-4 overflow-x-auto px-4">
         <div className="flex gap-1.5 whitespace-nowrap">
-          {TABS.map(([k, l]) => {
+          {(ADVANCED.some(([k]) => k === tab) ? TABS : SIMPLE).map(([k, l]) => {
             const n = new URLSearchParams(Object.entries(sp).filter(([, v]) => typeof v === "string") as [string, string][]);
             n.set("r", k); n.delete("account");
             return <Link key={k} href={`/reports?${n}`} className={`chip px-3 py-1.5 text-sm ${tab === k ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"}`}>{l}</Link>;
           })}
+          {!ADVANCED.some(([k]) => k === tab) && <Link href="/advanced" className="chip px-3 py-1.5 text-sm text-slate-500 ring-1 ring-slate-200 dark:ring-slate-700">Advanced…</Link>}
         </div>
       </div>
       <RangeBar from={from} to={to} />

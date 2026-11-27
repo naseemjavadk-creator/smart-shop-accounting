@@ -25,7 +25,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-4">
-      <PageHeader title={p.name} actions={<Link className="btn-secondary" href={`/transactions?range=this_year&q=${encodeURIComponent(p.name)}`}>Transactions</Link>} />
+      <PageHeader title={p.name} actions={<Link className="btn-secondary" href={`/transactions?range=this_year&q=${encodeURIComponent(p.name)}`}>Entries</Link>} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="In stock" value={p.is_service ? "Service" : `${qty(p.qty_on_hand)} ${p.unit}`} tone={!p.is_service && num(p.qty_on_hand) <= num(p.reorder_level) ? "bad" : "default"} />
         {fin && <Stat label="Average cost" value={aed(p.avg_cost)} hint={`Last purchase ${aed(p.purchase_price)}`} />}
