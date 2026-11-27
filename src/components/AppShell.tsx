@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { SyncBadge } from "./SyncBadge";
+import { InstallApp } from "./InstallApp";
 import { startSyncLoop, refreshCatalog } from "@/lib/offline/sync";
 
 type Item = { href: string; label: string; ml?: string; icon: typeof Mic; show: boolean; color: string };
@@ -89,6 +90,7 @@ export function AppShell({ user, shopName, children }: { user: SessionUser; shop
           <span>{i.label}{i.ml && <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{i.ml}</span>}</span>
         </Link>
       ))}
+      <InstallApp className="card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold leading-tight active:scale-95" />
       <button onClick={toggleTheme} className="card flex min-h-28 flex-col items-center justify-center gap-2 p-3 text-center text-[13px] font-semibold active:scale-95">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900">{dark ? <Sun size={26} /> : <Moon size={26} />}</span>
         {dark ? "Light mode" : "Dark mode"}

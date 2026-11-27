@@ -2,7 +2,9 @@
   "name": "Smart Shop Accounts",
   "short_name": "Shop Accounts",
   "description": "AI shop management and accounting",
+  "id": "/",
   "start_url": "/",
+  "orientation": "portrait",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
@@ -13,7 +15,9 @@
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
+    { "name": "Sale", "url": "/new/sale", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Purchase", "url": "/new/purchase", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
     { "name": "Speak an entry", "url": "/entry", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Scan bill", "url": "/scan" }
+    { "name": "Scan bill", "url": "/scan", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }
